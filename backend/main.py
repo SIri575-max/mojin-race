@@ -34,14 +34,16 @@ UI_DIR = Path(__file__).resolve().parent.parent / "ui"
 
 
 class RegisterIn(BaseModel):
-    username: str
-    password: str
     nickname: str
+    qq: str
+    password: str
+    game_id: str            # 第五人格游戏ID
+    game_username: str      # 第五人格游戏用户名
 
 
 class LoginIn(BaseModel):
-    username: str
-    password: str
+    account: str            # QQ号（或管理员用户名）
+    password: str           # 登录密码
 
 
 class EventIn(BaseModel):
@@ -65,37 +67,62 @@ class ResultConfirmIn(BaseModel):
     calc_takeout: float | None = None   # 选手自算带出价值（校对）
     calc_kills: int | None = None       # 选手自算击败异象总个数（校对）
     calc_kills_score: float | None = None  # 选手自算击败异象总分（校对）
-    partner_username: str = ""          # 双人场次时填队友用户名
+    partner_qq: str = ""               # 双人场次时填队友QQ号
 
 
 # ---- 注册 / 登录 ----
 
 
+def _user_dict(user: User) -> dict:
+    return {
+        "uid": user.id,
+        "nickname": user.nickname,
+        "qq": user.qq or user.username,
+        "game_id": user.game_id or "",
+        "game_username": user.game_username or "",
+        "role": user.role,
+    }
+
+
 @app.post("/api/register")
 def register(data: RegisterIn, db: Session = Depends(get_db)):
-    username = data.username.strip()
-    if not username or not data.password or not data.nickname.strip():
-        raise HTTPException(status_code=400, detail="用户名、密码、昵称不能为空")
-    if db.query(User).filter(User.username == username).first():
-        raise HTTPException(status_code=400, detail="用户名已被注册")
-    user = User(username=username, password_hash=hash_password(data.password), nickname=data.nickname.strip())
+    qq = data.qq.strip()
+    nickname = data.nickname.strip()
+    game_id = data.game_id.strip()
+    game_username = data.game_username.strip()
+    password = data.password
+    if not qq or not nickname or not game_id or not game_username or not password:
+        raise HTTPException(status_code=400, detail="昵称、QQ号、第五ID、第五用户名、密码均不能为空")
+    if db.query(User).filter((User.username == qq) | (User.qq == qq)).first():
+        raise HTTPException(status_code=400, detail="该QQ号已注册，请直接登录")
+    user = User(
+        username=qq,            # 内部账号 = QQ号
+        qq=qq,
+        password_hash=hash_password(password),
+        nickname=nickname,
+        game_id=game_id,
+        game_username=game_username,
+    )
     db.add(user)
     db.commit()
     db.refresh(user)
-    return {"token": create_token(user.id), "user": {"uid": user.id, "username": user.username, "nickname": user.nickname, "role": user.role}}
+    return {"token": create_token(user.id), "user": _user_dict(user)}
 
 
 @app.post("/api/login")
 def login(data: LoginIn, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == data.username.strip()).first()
-    if not user or not verify_password(data.password, user.password_hash):
-        raise HTTPException(status_code=400, detail="用户名或密码错误")
-    return {"token": create_token(user.id), "user": {"uid": user.id, "username": user.username, "nickname": user.nickname, "role": user.role}}
+    account = data.account.strip()
+    user = db.query(User).filter((User.username == account) | (User.qq == account)).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="账号不存在，请先注册")
+    if not user.password_hash or not verify_password(data.password, user.password_hash):
+        raise HTTPException(status_code=400, detail="密码错误")
+    return {"token": create_token(user.id), "user": _user_dict(user)}
 
 
 @app.get("/api/me")
 def me(user: User = Depends(get_current_user)):
-    return {"uid": user.id, "username": user.username, "nickname": user.nickname, "role": user.role}
+    return _user_dict(user)
 
 
 # ---- 赛事 ----
@@ -195,25 +222,25 @@ def ocr_upload(
     if engine == "ai":
         try:
             parsed = run_ai()
-        except RuntimeError as e:
+        except Exception as e:
             return JSONResponse(status_code=500, content={"detail": str(e)})
     elif engine == "ocr":
         try:
             parsed = run_ocr()
-        except RuntimeError as e:
+        except Exception as e:
             return JSONResponse(status_code=500, content={"detail": str(e)})
     else:  # auto：AI 优先，失败自动回退本地 OCR
         ai_error = None
         if vision_api.is_configured():
             try:
                 parsed = run_ai()
-            except RuntimeError as e:
+            except Exception as e:
                 ai_error = str(e)
         if ai_error is not None or not vision_api.is_configured():
             try:
                 parsed = run_ocr()
                 parsed["fallback"] = "ocr"
-            except RuntimeError as e:
+            except Exception as e:
                 detail = f"AI: {ai_error or '未配置'}；OCR: {e}" if ai_error else str(e)
                 return JSONResponse(status_code=422, content={"detail": detail})
         else:
@@ -239,7 +266,7 @@ def _enrich_kills(parsed: dict, path: str, use_ai: bool = True) -> dict:
             parsed["kills_total"] = r["kills_total"]
             parsed["kills_detail"] = r["kills_detail"]
             return parsed
-        except RuntimeError:
+        except Exception:
             pass
     try:
         text = ocr_service.ocr_image(path)
@@ -493,11 +520,13 @@ def submit_result(data: ResultConfirmIn, user: User = Depends(get_current_user),
     # 双人场次校验队友
     partner = None
     if data.is_duo:
-        if not data.partner_username.strip():
-            raise HTTPException(status_code=400, detail="双人场次需要填写队友用户名")
-        partner = db.query(User).filter(User.username == data.partner_username.strip()).first()
+        if not data.partner_qq.strip():
+            raise HTTPException(status_code=400, detail="双人场次需要填写队友QQ号")
+        partner = db.query(User).filter(
+            (User.username == data.partner_qq.strip()) | (User.qq == data.partner_qq.strip())
+        ).first()
         if not partner:
-            raise HTTPException(status_code=400, detail=f"队友「{data.partner_username}」不存在，请让队友先注册")
+            raise HTTPException(status_code=400, detail=f"队友「{data.partner_qq}」不存在，请让队友先注册")
         if partner.id == user.id:
             raise HTTPException(status_code=400, detail="队友不能是自己")
 

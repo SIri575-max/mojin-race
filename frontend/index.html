@@ -236,16 +236,18 @@
       <el-tabs v-model="authTab" class="auth-tabs">
         <el-tab-pane label="登录" name="login">
           <el-form label-position="top" @submit.prevent>
-            <el-form-item label="用户名"><el-input v-model="loginForm.username" placeholder="请输入用户名"></el-input></el-form-item>
+            <el-form-item label="QQ号"><el-input v-model="loginForm.account" placeholder="请输入注册时填写的QQ号"></el-input></el-form-item>
             <el-form-item label="密码"><el-input v-model="loginForm.password" type="password" show-password placeholder="请输入密码" @keyup.enter="login"></el-input></el-form-item>
             <el-button type="primary" style="width:100%" @click="login">登 录</el-button>
           </el-form>
         </el-tab-pane>
         <el-tab-pane label="注册" name="register">
           <el-form label-position="top" @submit.prevent>
-            <el-form-item label="用户名"><el-input v-model="regForm.username" placeholder="用于登录，例如：DingLing"></el-input></el-form-item>
             <el-form-item label="昵称"><el-input v-model="regForm.nickname" placeholder="榜单上展示的名字"></el-input></el-form-item>
-            <el-form-item label="密码"><el-input v-model="regForm.password" type="password" show-password placeholder="设置密码"></el-input></el-form-item>
+            <el-form-item label="QQ号"><el-input v-model="regForm.qq" placeholder="用于登录，例如：123456789"></el-input></el-form-item>
+            <el-form-item label="第五ID"><el-input v-model="regForm.game_id" placeholder="游戏内数字ID"></el-input></el-form-item>
+            <el-form-item label="第五用户名"><el-input v-model="regForm.game_username" placeholder="游戏内昵称"></el-input></el-form-item>
+            <el-form-item label="密码"><el-input v-model="regForm.password" type="password" show-password placeholder="设置登录密码"></el-input></el-form-item>
             <el-button type="primary" style="width:100%" @click="register">注 册</el-button>
           </el-form>
         </el-tab-pane>
@@ -504,8 +506,8 @@
               <el-alert v-if="calcMismatch" type="warning" :closable="false" style="margin-bottom:12px"
                 :title="'⚠️ 识别值与自算值不一致，请确认以哪个为准（可修改识别结果或提交自算值后联系管理员）'"></el-alert>
 
-              <el-form-item label="队友用户名" v-if="mode">
-                <el-input v-model="partner" placeholder="双人场次请填写队友用户名（须已注册）"></el-input>
+              <el-form-item label="队友QQ号" v-if="mode">
+                <el-input v-model="partner" placeholder="双人场次请填写队友QQ号（须已注册）"></el-input>
               </el-form-item>
               <el-form-item label="组队码" v-if="mode">
                 <el-input v-model="teamCode" placeholder="双方填同一组队码以关联成绩" style="width:100%">
@@ -615,7 +617,6 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="nickname" label="选手"></el-table-column>
-                <el-table-column prop="username" label="用户名"></el-table-column>
                 <el-table-column label="探索价值（最高一次累计）" sortable>
                   <template #default="{ row }"><span style="font-weight:600;color:var(--accent-light)">{{ row.total_value }}</span></template>
                 </el-table-column>
@@ -664,7 +665,6 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="nickname" label="选手"></el-table-column>
-                <el-table-column prop="username" label="用户名"></el-table-column>
                 <el-table-column label="最高带出价值" sortable>
                   <template #default="{ row }"><span style="font-weight:600;color:var(--accent-light)">{{ row.best_value }}</span></template>
                 </el-table-column>
@@ -686,7 +686,6 @@
                   </template>
                 </el-table-column>
                 <el-table-column prop="nickname" label="选手"></el-table-column>
-                <el-table-column prop="username" label="用户名"></el-table-column>
                 <el-table-column label="异象总分（新规则）" sortable>
                   <template #default="{ row }">
                     <span style="font-weight:600;color:var(--accent-light)">{{ row.best_kills }}</span>
@@ -793,8 +792,8 @@ createApp({
     const me = ref(null);
     const token = ref(localStorage.getItem('token') || '');
     const authTab = ref('login');
-    const loginForm = reactive({ username: '', password: '' });
-    const regForm = reactive({ username: '', nickname: '', password: '' });
+    const loginForm = reactive({ account: '', password: '' });
+    const regForm = reactive({ nickname: '', qq: '', game_id: '', game_username: '', password: '' });
     const mainTab = ref('entry');
     const rankTab = ref('single');
     const submitType = ref('total');
@@ -907,6 +906,10 @@ createApp({
     };
 
     const login = async () => {
+      if (!loginForm.account.trim() || !loginForm.password) {
+        ElementPlus.ElMessage.warning('请输入QQ号和密码');
+        return;
+      }
       try {
         const data = await api('/api/login', { method: 'POST', body: JSON.stringify(loginForm) });
         localStorage.setItem('token', data.token);
@@ -917,6 +920,10 @@ createApp({
     };
 
     const register = async () => {
+      if (!regForm.nickname.trim() || !regForm.qq.trim() || !regForm.game_id.trim() || !regForm.game_username.trim() || !regForm.password) {
+        ElementPlus.ElMessage.warning('昵称、QQ号、第五ID、第五用户名、密码均为必填');
+        return;
+      }
       try {
         const data = await api('/api/register', { method: 'POST', body: JSON.stringify(regForm) });
         localStorage.setItem('token', data.token);
@@ -1097,7 +1104,7 @@ createApp({
             kills_score: calcTotalScore.value,
             kills_detail: JSON.stringify(detail),
             calc_explore: null, calc_takeout: null, calc_kills: null, calc_kills_score: null,
-            partner_username: '',
+            partner_qq: '',
           }),
         });
         ElementPlus.ElMessage.success('异象计分已提交并入榜！');
@@ -1160,7 +1167,7 @@ createApp({
             calc_takeout: calc.takeout,
             calc_kills: calc.kills,
             calc_kills_score: calc.killsScore,
-            partner_username: mode.value ? partner.value : '',
+            partner_qq: mode.value ? partner.value : '',
           }),
         });
         ElementPlus.ElMessage.success('成绩已提交并入榜！');

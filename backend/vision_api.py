@@ -77,6 +77,41 @@ def _encode_image(path: str) -> str:
     return f"data:image/{ext};base64,{base64.b64encode(Path(path).read_bytes()).decode()}"
 
 
+def _post_chat(payload: dict, timeout: int = 60) -> str:
+    """发送 chat/completions 请求并返回清洗后的文本内容。
+
+    任何网络异常 / 非 200 / 响应结构异常统一抛 RuntimeError，
+    由上层回退处理，避免裸 500 崩溃。
+    """
+    base_url = os.environ["VISION_BASE_URL"].rstrip("/")
+    key = os.environ["VISION_API_KEY"]
+    try:
+        resp = requests.post(
+            f"{base_url}/chat/completions",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=timeout,
+        )
+    except requests.exceptions.RequestException as e:
+        raise RuntimeError(f"视觉AI请求失败: {e}")
+    if resp.status_code != 200:
+        raise RuntimeError(f"视觉AI接口错误({resp.status_code}): {resp.text[:200]}")
+    try:
+        content = resp.json()["choices"][0]["message"]["content"]
+    except Exception as e:
+        raise RuntimeError(f"视觉AI返回格式异常: {e}")
+    if content is None:
+        raise RuntimeError("视觉AI返回内容为空")
+    if not isinstance(content, str):
+        content = str(content)
+    content = content.strip()
+    if content.startswith("```"):
+        content = content.strip("`")
+        if content.startswith("json"):
+            content = content[4:]
+    return content
+
+
 def analyze_image(path: str) -> dict:
     """调用视觉大模型识别战绩图，返回结构化字段。
 
@@ -85,9 +120,7 @@ def analyze_image(path: str) -> dict:
     if not is_configured():
         raise RuntimeError("未配置视觉 AI（缺少 VISION_API_KEY / VISION_MODEL）")
 
-    base_url = os.environ["VISION_BASE_URL"].rstrip("/")
     model = os.environ["VISION_MODEL"]
-    key = os.environ["VISION_API_KEY"]
 
     payload = {
         "model": model,
@@ -104,23 +137,11 @@ def analyze_image(path: str) -> dict:
         "temperature": 0,
         "response_format": {"type": "json_object"},
     }
-    resp = requests.post(
-        f"{base_url}/chat/completions",
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-        json=payload,
-        timeout=60,
-    )
-    if resp.status_code != 200:
-        raise RuntimeError(f"视觉AI接口错误({resp.status_code}): {resp.text[:200]}")
-    content = resp.json()["choices"][0]["message"]["content"]
-
-    # 容错解析：有些服务商不支持 response_format，返回带 ```json 包裹的文本
-    content = content.strip()
-    if content.startswith("```"):
-        content = content.strip("`")
-        if content.startswith("json"):
-            content = content[4:]
-    data = json.loads(content)
+    content = _post_chat(payload, timeout=60)
+    try:
+        data = json.loads(content)
+    except (json.JSONDecodeError, ValueError):
+        raise RuntimeError(f"视觉AI返回无法解析: {content[:200]}")
 
     def num(v):
         if v is None or v == "":
@@ -158,9 +179,7 @@ def analyze_list(path: str) -> list:
     if not is_configured():
         raise RuntimeError("未配置视觉 AI（缺少 VISION_API_KEY / VISION_MODEL）")
 
-    base_url = os.environ["VISION_BASE_URL"].rstrip("/")
     model = os.environ["VISION_MODEL"]
-    key = os.environ["VISION_API_KEY"]
 
     payload = {
         "model": model,
@@ -177,24 +196,10 @@ def analyze_list(path: str) -> list:
         "temperature": 0,
         "response_format": {"type": "json_object"},
     }
-    resp = requests.post(
-        f"{base_url}/chat/completions",
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-        json=payload,
-        timeout=90,
-    )
-    if resp.status_code != 200:
-        raise RuntimeError(f"视觉AI接口错误({resp.status_code}): {resp.text[:200]}")
-    content = resp.json()["choices"][0]["message"]["content"]
-    content = content.strip()
-    if content.startswith("```"):
-        content = content.strip("`")
-        if content.startswith("json"):
-            content = content[4:]
-
+    content = _post_chat(payload, timeout=90)
     try:
         data = json.loads(content)
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, ValueError):
         raise RuntimeError(f"视觉AI返回无法解析: {content[:200]}")
 
     matches = data.get("matches", []) if isinstance(data, dict) else data
@@ -335,7 +340,7 @@ KILLS_PROMPT_TEMPLATE = (
 
 
 _ICON_COLOR_RULES = [
-    ("红色叹息球", ["红色", "粉红", "粉红色", "红球", "红色球"]),
+    ("异色叹息球", ["红色", "粉红", "粉红色", "红球", "红色球"]),
     ("异色贪婪的盗匪", ["黑色", "黑衣", "暗色", "深色", "异色", "白色", "白衣", "白发", "灰白"]),
     ("异色失职的看守", ["黑色", "黑衣", "暗色", "深色", "异色", "白色", "白衣", "白发", "灰白"]),
 ]
@@ -413,9 +418,7 @@ def _match_icon_name(name: str, icons: dict) -> "str | None":
 
 def _call_kills_once(pil_image, prompt: str = None, temperature: float = 0.0) -> str:
     """单次调用视觉大模型，返回模型原始文本（自动解析 ```json 包裹）。"""
-    base_url = os.environ["VISION_BASE_URL"].rstrip("/")
     model = os.environ["VISION_MODEL"]
-    key = os.environ["VISION_API_KEY"]
 
     # 图片编码：PIL Image 直接转 PNG base64
     if hasattr(pil_image, "save"):
@@ -440,21 +443,7 @@ def _call_kills_once(pil_image, prompt: str = None, temperature: float = 0.0) ->
         "temperature": temperature,
         "response_format": {"type": "json_object"},
     }
-    resp = requests.post(
-        f"{base_url}/chat/completions",
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-        json=payload,
-        timeout=120,
-    )
-    if resp.status_code != 200:
-        raise RuntimeError(f"视觉AI接口错误({resp.status_code}): {resp.text[:200]}")
-    content = resp.json()["choices"][0]["message"]["content"]
-    content = content.strip()
-    if content.startswith("```"):
-        content = content.strip("`")
-        if content.startswith("json"):
-            content = content[4:]
-    return content
+    return _post_chat(payload, timeout=120)
 
 
 def _parse_kills_once(content: str) -> dict:
@@ -493,8 +482,12 @@ def _analyze_kills_once(path: str, temperature: float = 0.0) -> dict:
     counts = _parse_kills_once(content)
     detail = []
     total = 0.0
+    _icons = load_icons()
     for matched, count in counts.items():
-        score = load_icons()[matched][0]
+        info = _icons.get(matched)
+        if not info:
+            continue
+        score = info[0]
         sub = round(score * count, 2)
         detail.append({"name": matched, "count": count, "score": score, "sub": sub})
         total += sub
@@ -625,7 +618,7 @@ def analyze_kills_icons(path: str, samples: int = 2, multi_view: bool = True) ->
             content = _call_kills_once(path, temperature=_TEMPS[i % len(_TEMPS)])
             views.append(_parse_kills_once(content))
             raw_texts.append(f"[整图#{i+1}] {content}")
-        except RuntimeError as e:
+        except Exception as e:
             last_err = e
             continue
     # 2) 图标区放大 + 逐格扫描（强制 row/col，对“两行”布局补漏最有效）
@@ -643,7 +636,7 @@ def analyze_kills_icons(path: str, samples: int = 2, multi_view: bool = True) ->
                     content = _call_kills_once(region, prompt=DETAIL_KILLS_PROMPT, temperature=_TEMPS[i % len(_TEMPS)])
                     views.append(_parse_kills_once(content))
                     raw_texts.append(f"[逐格#{i+1}] {content}")
-                except RuntimeError as e:
+                except Exception as e:
                     last_err = e
                     continue
         except Exception as e:
@@ -655,7 +648,7 @@ def analyze_kills_icons(path: str, samples: int = 2, multi_view: bool = True) ->
                     content = _call_kills_once(band, temperature=0.0)
                     views.append(_parse_kills_once(content))
                     raw_texts.append(f"[条带#{j+1}] {content}")
-                except RuntimeError as e:
+                except Exception as e:
                     last_err = e
                     continue
         except Exception as e:
@@ -669,7 +662,10 @@ def analyze_kills_icons(path: str, samples: int = 2, multi_view: bool = True) ->
     detail = []
     total = 0.0
     for matched, count in merged.items():
-        score = icons[matched][0]
+        info = icons.get(matched)
+        if not info:
+            continue
+        score = info[0]
         sub = round(score * count, 2)
         detail.append({"name": matched, "count": count, "score": score, "sub": sub})
         total += sub

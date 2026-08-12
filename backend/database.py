@@ -16,8 +16,11 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(64), unique=True, index=True, nullable=False)
-    password_hash = Column(String(256), nullable=False)
+    password_hash = Column(String(256), nullable=False, default="")  # 选手无需密码，空字符串；管理员保留密码
     nickname = Column(String(64), nullable=False)
+    qq = Column(String(32), index=True)               # QQ号（登录账号，应用层唯一）
+    game_id = Column(String(64), default="")           # 第五人格游戏ID
+    game_username = Column(String(64), default="")     # 第五人格游戏用户名
     role = Column(String(16), default="player")  # player / admin
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -76,7 +79,7 @@ def init_db():
 
 
 def _migrate():
-    """SQLite 轻量迁移：为已存在的 results 表补充新增列"""
+    """SQLite 轻量迁移：为已存在的 results / users 表补充新增列"""
     with engine.begin() as conn:
         cols = {row[1] for row in conn.execute(text("PRAGMA table_info(results)"))}
         add = {
@@ -93,6 +96,16 @@ def _migrate():
         for name, ddl in add.items():
             if name not in cols:
                 conn.execute(text(f"ALTER TABLE results ADD COLUMN {name} {ddl}"))
+
+        ucols = {row[1] for row in conn.execute(text("PRAGMA table_info(users)"))}
+        uadd = {
+            "qq": "VARCHAR(32)",
+            "game_id": "VARCHAR(64) DEFAULT ''",
+            "game_username": "VARCHAR(64) DEFAULT ''",
+        }
+        for name, ddl in uadd.items():
+            if name not in ucols:
+                conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {ddl}"))
 
 
 def get_db():
