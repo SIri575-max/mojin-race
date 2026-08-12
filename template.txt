@@ -1,0 +1,434 @@
+<div id="app">
+  <div class="app-header">
+    <div class="brand">
+      <span class="logo">🗝️</span>
+      <div>
+        <span>第五人格 · <span class="gold">摸金娱乐赛</span></span>
+        <span class="tagline">✦ 欧利蒂丝庄园 · THE TREASURE HUNT ✦</span>
+      </div>
+    </div>
+    <div class="user-box" v-if="me">
+      <el-tag size="large" effect="dark" type="warning">{{ me.nickname }}</el-tag>
+      <el-button size="small" @click="logout">退出登录</el-button>
+    </div>
+  </div>
+
+  <!-- 未登录：注册 / 登录 -->
+  <div class="auth-wrap" v-if="!me">
+    <div class="card auth-card">
+      <h2 style="text-align:center;margin-top:0;color:var(--accent-light)">摸金娱乐赛 · 选手入口</h2>
+      <el-tabs v-model="authTab" class="auth-tabs">
+        <el-tab-pane label="登录" name="login">
+          <el-form label-position="top" @submit.prevent>
+            <el-form-item label="用户名"><el-input v-model="loginForm.username" placeholder="请输入用户名" /></el-form-item>
+            <el-form-item label="密码"><el-input v-model="loginForm.password" type="password" show-password placeholder="请输入密码" @keyup.enter="login" /></el-form-item>
+            <el-button type="primary" style="width:100%" @click="login">登 录</el-button>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="注册" name="register">
+          <el-form label-position="top" @submit.prevent>
+            <el-form-item label="用户名"><el-input v-model="regForm.username" placeholder="用于登录，例如：DingLing" /></el-form-item>
+            <el-form-item label="昵称"><el-input v-model="regForm.nickname" placeholder="榜单上展示的名字" /></el-form-item>
+            <el-form-item label="密码"><el-input v-model="regForm.password" type="password" show-password placeholder="设置密码" /></el-form-item>
+            <el-button type="primary" style="width:100%" @click="register">注 册</el-button>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
+      <p class="hint" style="text-align:center;margin-bottom:0">注册后即可上传战绩图录入成绩</p>
+    </div>
+  </div>
+
+  <!-- 已登录：主界面 -->
+  <div class="page" v-else>
+    <el-tabs v-model="mainTab">
+      <!-- 战绩录入 -->
+      <el-tab-pane label="🎯 战绩录入" name="entry">
+        <div class="card">
+          <div class="section-title">上传战绩图，自动识别成绩</div>
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+            <el-radio-group v-model="submitType">
+              <el-radio-button :value="'total'">总价值榜（战绩列表）</el-radio-button>
+              <el-radio-button :value="'best'">单场最高榜（结算图）</el-radio-button>
+            </el-radio-group>
+            <el-radio-group v-model="mode" v-if="submitType === 'total'">
+              <el-radio-button :value="false">单人</el-radio-button>
+              <el-radio-button :value="true">双人</el-radio-button>
+            </el-radio-group>
+            <div style="margin-left:auto">
+              <span class="hint" style="margin-right:8px">识别引擎：</span>
+              <el-radio-group v-model="engine" size="small">
+                <el-radio-button :value="'auto'">智能(AI优先)</el-radio-button>
+                <el-radio-button :value="'ai'">视觉AI</el-radio-button>
+                <el-radio-button :value="'ocr'">本地OCR</el-radio-button>
+              </el-radio-group>
+            </div>
+          </div>
+
+          <!-- 总价值榜：时间段 + 多图批量上传累加 -->
+          <template v-if="submitType === 'total'">
+            <el-alert type="info" :closable="false" style="margin-bottom:14px"
+              title="请先选择统计时间段（不超过 2 小时），再上传多张位于该时间段内的对局截图（战绩列表截图或单场结算图均可）；系统将逐张识别并自动累加时间段内的探索价值。" />
+            <div class="batch-card">
+              <div class="section-title">① 选择统计时间段</div>
+              <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+                <span class="hint">统计时间段：</span>
+                <el-date-picker v-model="timeRange" type="datetimerange" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间"
+                  value-format="YYYY-MM-DDTHH:mm" :default-time="[new Date(2000,0,1,0,0), new Date(2000,0,1,23,59)]" style="width:360px" />
+                <el-tag v-if="rangeHours" :type="rangeHours > 2 ? 'danger' : 'success'" size="small">{{ rangeHours }} 小时</el-tag>
+              </div>
+
+              <div class="section-title">② 上传多张对局截图（可一次多选，也可多次追加）</div>
+              <div class="upload-area" style="align-items:flex-start">
+                <el-upload
+                  multiple
+                  :auto-upload="false"
+                  v-model:file-list="batchFiles"
+                  accept="image/*"
+                  list-type="picture-card"
+                  :limit="12"
+                  :on-exceed="onBatchExceed"
+                  style="width:100%">
+                  <div class="hint" style="line-height:1.6">🖼️ 点击选择多张图片<br>png / jpg / jpeg / webp / bmp</div>
+                </el-upload>
+                <div style="display:flex;gap:10px;flex-wrap:wrap">
+                  <el-button type="primary" :loading="recognizing" :disabled="!batchFiles.length || !timeRange || timeRange.length !== 2" @click="runBatch">
+                    ⚡ 开始批量识别累加
+                  </el-button>
+                  <el-button v-if="batchItems.length || batchFiles.length" @click="clearBatch">清空</el-button>
+                </div>
+              </div>
+
+              <template v-if="batchItems.length">
+                <div class="section-title" style="margin-top:18px">③ 识别结果（共 {{ batchItems.length }} 张）</div>
+                <el-table :data="batchItems" size="small" class="rank-table" max-height="300" empty-text="暂无结果">
+                  <el-table-column label="图片" width="90">
+                    <template #default="{ row }">
+                      <el-image v-if="row.image_path" :src="imgSrc(row.image_path)" :preview-src-list="imgSrcs(row.image_path)" fit="cover"
+                        style="width:56px;height:56px" class="thumb-img" preview-teleported />
+                      <span v-else style="color:#888;font-size:12px">-</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="filename" label="文件名" min-width="140" show-overflow-tooltip />
+                  <el-table-column label="类型" width="80">
+                    <template #default="{ row }">
+                      <el-tag size="small" :type="row.kind === 'list' ? 'success' : (row.kind === 'single' ? 'primary' : 'danger')">
+                        {{ row.kind === 'list' ? '列表' : (row.kind === 'single' ? '单场' : '失败') }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="引擎" width="80">
+                    <template #default="{ row }"><span class="hint">{{ row.engine === 'ai' ? '视觉AI' : (row.engine === 'ocr' ? '本地OCR' : '-') }}</span></template>
+                  </el-table-column>
+                  <el-table-column label="计入价值" width="120" sortable>
+                    <template #default="{ row }">
+                      <span v-if="row.error" style="color:#e06a6a;font-size:12px" :title="row.error">出错</span>
+                      <span v-else style="font-weight:600;color:var(--accent-light)">{{ row.sub_total }}</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <el-alert type="success" :closable="false" style="margin-top:12px"
+                  :title="`批量累加完成：${successCount}/${batchItems.length} 张识别成功，时间段内探索价值合计 ` + batchTotal + '（已自动填入下方合计，可手动微调）'" />
+              </template>
+
+              <el-divider content-position="left" style="margin-bottom:0"><span class="hint">或直接上传一张完整的战绩列表截图（一屏多场）</span></el-divider>
+            </div>
+          </template>
+          <!-- 单场最高榜：单场结算图 -->
+          <el-alert v-else type="info" :closable="false" style="margin-bottom:14px"
+            title="请上传【单场结算页】截图（含探索价值/带出价值/击败异象三个标签）；勿上传战绩列表汇总页。" />
+
+          <el-upload
+            drag
+            :show-file-list="false"
+            :http-request="uploadShot"
+            accept="image/*"
+            style="margin-bottom:16px">
+            <el-icon style="font-size:40px;color:#d4af37"><i>📷</i></el-icon>
+            <div style="margin:6px 0 4px">拖拽战绩截图到这里，或 <em>点击上传</em></div>
+            <div class="hint">支持 png / jpg / jpeg / webp / bmp，识别结果可手动修改；视觉AI识别更准，本地OCR无需联网</div>
+          </el-upload>
+
+          <div v-if="preview" style="display:flex;gap:24px;flex-wrap:wrap">
+            <div style="flex:0 0 220px">
+              <img :src="preview" class="preview-img" alt="战绩图">
+              <p class="hint" style="text-align:center">识别原图</p>
+            </div>
+            <el-form label-width="120px" style="flex:1;min-width:280px">
+              <!-- 总价值模式：展示时间段内场次 -->
+              <template v-if="submitType === 'total'">
+                <el-form-item :label="batchActive ? '批量识别' : '识别场次数'">
+                  <template v-if="batchActive">
+                    <span>{{ successCount }} 张识别成功（共 {{ batchItems.length }} 张，见上方表格）</span>
+                  </template>
+                  <template v-else>
+                    <span>{{ listMatches.length }} 场（{{ listInRange }} 场在时间段内）</span>
+                  </template>
+                </el-form-item>
+                <el-form-item label="时间段内合计">
+                  <el-input-number v-model="parsed.explore_value" :min="0" :precision="2" :controls="false" style="width:100%" placeholder="时间段内探索价值总和" />
+                  <div class="hint" style="margin-top:6px">批量上传时已自动累加各张在时间段内的探索价值，可手动微调</div>
+                </el-form-item>
+                <el-form-item v-if="listMatches.length && !batchActive" label="识别明细">
+                  <div style="width:100%">
+                    <el-table :data="listMatches" size="small" max-height="220" empty-text="未识别到场次">
+                      <el-table-column label="时间" width="130">
+                        <template #default="{ row }">{{ row.time }}</template>
+                      </el-table-column>
+                      <el-table-column label="探索价值" width="110">
+                        <template #default="{ row }">{{ row.explore_value }}</template>
+                      </el-table-column>
+                      <el-table-column label="是否在时间段内">
+                        <template #default="{ row }">
+                          <el-tag :type="row.in_range ? 'success' : 'info'" size="small">{{ row.in_range ? '计入' : '不计' }}</el-tag>
+                        </template>
+                      </el-table-column>
+                    </el-table>
+                  </div>
+                </el-form-item>
+              </template>
+              <!-- 单场最高模式：结算图字段 -->
+              <template v-else>
+                <el-form-item label="带出价值">
+                  <el-input-number v-model="parsed.takeout_value" :min="0" :precision="2" :controls="false" style="width:100%" placeholder="本场带出价值" />
+                </el-form-item>
+                <el-form-item label="击败异象(只数)">
+                  <el-input-number v-model="parsed.kills" :min="0" :precision="0" :controls="false" style="width:100%" placeholder="击败异象总只数（新规则：按图标数量累加）" />
+                </el-form-item>
+                <el-form-item label="击败异象总分">
+                  <el-input-number v-model="parsed.kills_score" :min="0" :precision="2" :controls="false" style="width:100%" placeholder="Σ 各异象图标 分值×个数（新规则）" />
+                  <div class="hint" style="margin-top:6px">新规则：结算图右下角为各异象图标数量，系统自动按「图标分值 × 个数」累加总分</div>
+                </el-form-item>
+                <el-form-item v-if="killsDetail.length" label="图标明细">
+                  <div style="width:100%">
+                    <el-table :data="killsDetail" size="small" max-height="240" class="rank-table">
+                      <el-table-column label="图标" prop="name" min-width="130" />
+                      <el-table-column label="数量" width="70" prop="count" />
+                      <el-table-column label="单个分值" width="90">
+                        <template #default="{ row }">{{ row.score }}</template>
+                      </el-table-column>
+                      <el-table-column label="小计" width="90">
+                        <template #default="{ row }"><span style="color:var(--accent-light);font-weight:600">{{ row.sub }}</span></template>
+                      </el-table-column>
+                    </el-table>
+                    <p class="hint" style="margin:8px 0 0">合计 <span style="color:var(--accent-light);font-weight:700">{{ killsScore }}</span> 分（共 {{ killsTotal }} 只）</p>
+                  </div>
+                </el-form-item>
+              </template>
+
+              <!-- 校对区：选手自算数据 -->
+              <el-divider content-position="left"><span class="hint">📝 自算数据校对（填你提前手算的数值，与识别结果对比）</span></el-divider>
+              <template v-if="submitType === 'total'">
+                <el-form-item label="我自算的总价值">
+                  <el-input-number v-model="calc.explore" :min="0" :precision="2" :controls="false" style="width:100%" placeholder="自己手动算出的时间段总价值" />
+                </el-form-item>
+              </template>
+              <template v-else>
+                <el-form-item label="我自算的带出价值">
+                  <el-input-number v-model="calc.takeout" :min="0" :precision="2" :controls="false" style="width:100%" placeholder="自己手动算出的带出价值" />
+                </el-form-item>
+                <el-form-item label="我自算的击败异象">
+                  <el-input-number v-model="calc.kills" :min="0" :precision="0" :controls="false" style="width:100%" placeholder="自己数出的击败异象只数" />
+                </el-form-item>
+                <el-form-item label="我自算的异象总分">
+                  <el-input-number v-model="calc.killsScore" :min="0" :precision="2" :controls="false" style="width:100%" placeholder="自己按「图标分值×个数」手算的总分（新规则）" />
+                </el-form-item>
+              </template>
+              <el-alert v-if="calcMismatch" type="warning" :closable="false" style="margin-bottom:12px"
+                :title="'⚠️ 识别值与自算值不一致，请确认以哪个为准（可修改识别结果或提交自算值后联系管理员）'" />
+
+              <el-form-item label="队友用户名" v-if="mode">
+                <el-input v-model="partner" placeholder="双人场次请填写队友用户名（须已注册）" />
+              </el-form-item>
+              <el-form-item label="组队码" v-if="mode">
+                <el-input v-model="teamCode" placeholder="双方填同一组队码以关联成绩" style="width:100%">
+                  <template #append>
+                    <el-button @click="genTeamCode">重新生成</el-button>
+                  </template>
+                </el-input>
+                <div class="hint" style="line-height:1.5;margin-top:6px">将组队码告诉队友，队友提交时填入相同组队码，双人成绩即可自动合并</div>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" :loading="submitting" @click="submitResult">确认提交成绩</el-button>
+              </el-form-item>
+              <el-collapse v-if="ocrRaw">
+                <el-collapse-item title="查看 OCR 识别原文（如数值不准确，可复制此文本给管理员调优）" name="raw">
+                  <pre style="white-space:pre-wrap;word-break:break-all;background:#14121a;color:#d9d2ec;border-radius:8px;padding:12px;margin:0;max-height:200px;overflow:auto">{{ ocrRaw }}</pre>
+                </el-collapse-item>
+              </el-collapse>
+            </el-form>
+          </div>
+          <p v-else class="hint">请先上传一张清晰的战绩截图</p>
+        </div>
+      </el-tab-pane>
+
+      <!-- 排行榜 -->
+      <el-tab-pane label="🏆 排行榜" name="ranking">
+        <div class="card">
+          <el-tabs v-model="rankTab">
+            <el-tab-pane label="单人总价值" name="single">
+              <el-table :data="ranks.single_total" size="large" empty-text="暂无数据" class="rank-table">
+                <el-table-column label="排名" width="90">
+                  <template #default="{ row }">
+                    <span v-if="row.rank <= 3" class="medal" :class="'medal-' + ['first','second','third'][row.rank-1]">{{ ['🥇','🥈','🥉'][row.rank-1] }}</span>
+                    <span class="rank-no" v-else>{{ row.rank }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="nickname" label="选手" />
+                <el-table-column prop="username" label="用户名" />
+                <el-table-column label="探索价值（最高一次累计）" sortable>
+                  <template #default="{ row }"><span style="font-weight:600;color:var(--accent-light)">{{ row.total_value }}</span></template>
+                </el-table-column>
+                <el-table-column label="提交图片" width="100">
+                  <template #default="{ row }">
+                    <el-image v-if="row.image_path" :src="imgSrc(row.image_path)" :preview-src-list="imgSrcs(row.image_path)" fit="cover"
+                      style="width:56px;height:56px" class="thumb-img" preview-teleported />
+                    <span v-else style="color:#888;font-size:12px">-</span>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+            <el-tab-pane label="双人总价值" name="duo">
+              <el-table :data="ranks.duo_total" size="large" empty-text="暂无数据" class="rank-table">
+                <el-table-column label="排名" width="90">
+                  <template #default="{ row }">
+                    <span v-if="row.rank <= 3" class="medal" :class="'medal-' + ['first','second','third'][row.rank-1]">{{ ['🥇','🥈','🥉'][row.rank-1] }}</span>
+                    <span class="rank-no" v-else>{{ row.rank }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="双人组合">
+                  <template #default="{ row }">{{ row.members.map(m => m.nickname).join(' + ') }}</template>
+                </el-table-column>
+                <el-table-column label="总价值（两人合计）" sortable>
+                  <template #default="{ row }"><span style="font-weight:600;color:var(--accent-light)">{{ row.total_value }}</span></template>
+                </el-table-column>
+                <el-table-column label="提交图片" width="140">
+                  <template #default="{ row }">
+                    <div style="display:flex;gap:6px">
+                      <template v-for="m in row.members" :key="m.uid">
+                        <el-image v-if="m.image_path" :src="imgSrc(m.image_path)" :preview-src-list="imgSrcs(m.image_path)" fit="cover"
+                          style="width:48px;height:48px" class="thumb-img" preview-teleported />
+                        <span v-else style="color:#888;font-size:12px">-</span>
+                      </template>
+                    </div>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+            <el-tab-pane label="单场最高带出" name="takeout">
+              <el-table :data="ranks.best_takeout" size="large" empty-text="暂无数据" class="rank-table">
+                <el-table-column label="排名" width="90">
+                  <template #default="{ row }">
+                    <span v-if="row.rank <= 3" class="medal" :class="'medal-' + ['first','second','third'][row.rank-1]">{{ ['🥇','🥈','🥉'][row.rank-1] }}</span>
+                    <span class="rank-no" v-else>{{ row.rank }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="nickname" label="选手" />
+                <el-table-column prop="username" label="用户名" />
+                <el-table-column label="最高带出价值" sortable>
+                  <template #default="{ row }"><span style="font-weight:600;color:var(--accent-light)">{{ row.best_value }}</span></template>
+                </el-table-column>
+                <el-table-column label="提交图片" width="100">
+                  <template #default="{ row }">
+                    <el-image v-if="row.image_path" :src="imgSrc(row.image_path)" :preview-src-list="imgSrcs(row.image_path)" fit="cover"
+                      style="width:56px;height:56px" class="thumb-img" preview-teleported />
+                    <span v-else style="color:#888;font-size:12px">-</span>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+            <el-tab-pane label="击败异象" name="kills">
+              <el-table :data="ranks.best_kills" size="large" empty-text="暂无数据" class="rank-table">
+                <el-table-column label="排名" width="90">
+                  <template #default="{ row }">
+                    <span v-if="row.rank <= 3" class="medal" :class="'medal-' + ['first','second','third'][row.rank-1]">{{ ['🥇','🥈','🥉'][row.rank-1] }}</span>
+                    <span class="rank-no" v-else>{{ row.rank }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="nickname" label="选手" />
+                <el-table-column prop="username" label="用户名" />
+                <el-table-column label="异象总分（新规则）" sortable>
+                  <template #default="{ row }">
+                    <span style="font-weight:600;color:var(--accent-light)">{{ row.best_kills }}</span>
+                    <span class="hint" v-if="row.kills_total">（{{ row.kills_total }} 只）</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="明细" width="70">
+                  <template #default="{ row }">
+                    <el-popover v-if="row.kills_detail" trigger="hover" width="300">
+                      <template #reference><el-button link type="primary" size="small">查看</el-button></template>
+                      <div class="section-title" style="font-size:14px;margin-bottom:8px">图标明细（分值×个数）</div>
+                      <el-table :data="parseDetail(row.kills_detail)" size="small">
+                        <el-table-column prop="name" label="图标" min-width="110" />
+                        <el-table-column prop="count" label="数" width="60" />
+                        <el-table-column label="小计" width="80">
+                          <template #default="{ row: d }"><span style="color:var(--accent-light)">{{ d.sub }}</span></template>
+                        </el-table-column>
+                      </el-table>
+                    </el-popover>
+                    <span v-else style="color:#888;font-size:12px">-</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="提交图片" width="100">
+                  <template #default="{ row }">
+                    <el-image v-if="row.image_path" :src="imgSrc(row.image_path)" :preview-src-list="imgSrcs(row.image_path)" fit="cover"
+                      style="width:56px;height:56px" class="thumb-img" preview-teleported />
+                    <span v-else style="color:#888;font-size:12px">-</span>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+      </el-tab-pane>
+
+      <!-- 我的成绩 -->
+      <el-tab-pane label="📋 我的成绩" name="mine">
+        <div class="card">
+          <div class="section-title">我提交的场次</div>
+          <el-table :data="myResults" size="large" empty-text="还没有提交过成绩" class="rank-table">
+            <el-table-column prop="match_id" label="场次" width="120" />
+            <el-table-column label="类型" width="90">
+              <template #default="{ row }">{{ row.submit_type === 'total' ? (row.is_duo ? '双人总价值' : '单人总价值') : '单场最高' }}</template>
+            </el-table-column>
+            <el-table-column prop="explore_value" label="总价值/探索" />
+            <el-table-column prop="takeout_value" label="带出价值" />
+            <el-table-column prop="kills" label="异象只数" width="90" />
+            <el-table-column label="异象总分" width="90">
+              <template #default="{ row }">
+                <span v-if="row.kills_score !== null && row.kills_score !== undefined">{{ row.kills_score }}</span>
+                <span v-else style="color:#888">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="时间段" width="230">
+              <template #default="{ row }">
+                <span v-if="row.time_start">{{ row.time_start.slice(5,16).replace('T',' ') }} ~ {{ row.time_end.slice(5,16).replace('T',' ') }}</span>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="自算值" width="170">
+              <template #default="{ row }">
+                <span v-if="row.calc_explore !== null || row.calc_takeout !== null || row.calc_kills !== null || row.calc_kills_score !== null" style="font-size:12px;color:#a0a0b8">
+                  {{ row.calc_explore !== null ? '探:' + row.calc_explore : '' }} {{ row.calc_takeout !== null ? '带:' + row.calc_takeout : '' }} {{ row.calc_kills !== null ? '击:' + row.calc_kills : '' }} {{ row.calc_kills_score !== null ? '异分:' + row.calc_kills_score : '' }}
+                </span>
+                <span v-else style="color:#888">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="战绩图" width="100">
+              <template #default="{ row }">
+                <el-image v-if="row.image_path" :src="imgSrc(row.image_path)" :preview-src-list="imgSrcs(row.image_path)" fit="cover"
+                  style="width:56px;height:56px;border-radius:6px" class="thumb-img" preview-teleported />
+                <span v-else style="color:#888">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="90">
+              <template #default="{ row }">
+                <el-tag :type="row.confirmed ? 'success' : 'warning'" size="small">{{ row.confirmed ? '已入榜' : '待队友' }}</el-tag>
+              </template>
+            </el-table-column>
+
+          </el-table>
+        </div>
+      </el-tab-pane>
+    </el-tabs>
+  </div>
+</div>

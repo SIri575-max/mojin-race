@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZUL蓝宝石杯 · 第五人格摸金娱乐赛</title>
+  <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+  <style>
+    :root {
+      --bg-dark: #14121a;
+      --bg-card: #1f1b2a;
+      --accent: #d4af37;
+      --accent-light: #f0d98c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+      background:
+        linear-gradient(180deg, rgba(12,10,18,0.78), rgba(12,10,18,0.92)),
+        url("/ui/1.jpg") center center / cover no-repeat fixed;
+      min-height: 100vh;
+      color: #e8e4f0;
+    }
+    .app-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 28px;
+      background: rgba(20, 18, 26, 0.9);
+      border-bottom: 1px solid rgba(212, 175, 55, 0.25);
+      position: sticky; top: 0; z-index: 10;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; font-size: 20px; font-weight: 700; letter-spacing: 1px; }
+    .brand .logo-img {
+      height: 44px; width: auto; display: block;
+      filter: drop-shadow(0 0 8px rgba(212, 175, 55, 0.45));
+    }
+    .brand .gold { color: var(--accent); }
+    .user-box { display: flex; align-items: center; gap: 12px; }
+    .page { max-width: 1080px; margin: 24px auto 60px; padding: 0 16px; }
+    /* 顶部横幅：第五人格庄园风格 */
+    .hero-banner {
+      position: relative; overflow: hidden;
+      border-radius: 14px;
+      padding: 42px 34px 36px;
+      margin-bottom: 22px;
+      border: 1px solid rgba(212, 175, 55, 0.35);
+      background:
+        linear-gradient(90deg, rgba(14,11,22,0.9) 0%, rgba(14,11,22,0.6) 55%, rgba(14,11,22,0.25) 100%),
+        url("/ui/6.jpg") center center / cover no-repeat;
+      box-shadow: 0 12px 44px rgba(0, 0, 0, 0.55);
+    }
+    .hero-banner::after {
+      content: ""; position: absolute; inset: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse at 18% 45%, rgba(212,175,55,0.14), transparent 55%),
+        repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,0.015) 3px 4px);
+    }
+    .hero-title {
+      position: relative; z-index: 1;
+      font-family: Georgia, "Songti SC", serif;
+      font-size: 30px; font-weight: 700; letter-spacing: 5px;
+      color: #f7e7a8;
+      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.65);
+    }
+    .hero-title .hero-knob { color: #d4af37; }
+    .hero-sub {
+      position: relative; z-index: 1;
+      margin-top: 9px; font-size: 13px; letter-spacing: 6px;
+      color: #c9c2de; font-family: Georgia, serif;
+    }
+    .hero-stats {
+      position: relative; z-index: 1;
+      display: flex; gap: 26px; margin-top: 18px; flex-wrap: wrap;
+    }
+    .hero-stats .st { display: flex; flex-direction: column; gap: 2px; }
+    .hero-stats .st b { font-size: 18px; color: #f7e7a8; font-family: Georgia, serif; }
+    .hero-stats .st span { font-size: 11px; color: #8d84a8; letter-spacing: 2px; }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid rgba(212, 175, 55, 0.15);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+    }
+    .auth-wrap { display: flex; align-items: center; justify-content: center; min-height: calc(100vh - 80px); }
+    .auth-card { width: 400px; }
+    .auth-logo { text-align: center; margin-bottom: 8px; }
+    .auth-logo img { height: 74px; filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.4)); }
+    .auth-tabs { margin-bottom: 18px; }
+    .section-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; color: var(--accent-light); }
+    .rank-table :deep(th) { background: #26203a !important; color: #d9d2ec !important; }
+    .rank-no { font-weight: 700; color: var(--accent); }
+    .upload-area { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .preview-img { max-width: 320px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.15); }
+    .hint { color: #a79fc0; font-size: 13px; }
+    .el-button--primary {
+      --el-button-bg-color: var(--accent);
+      --el-button-border-color: var(--accent);
+      --el-button-hover-bg-color: var(--accent-light);
+      --el-button-hover-border-color: var(--accent-light);
+      --el-button-text-color: #1f1b2a;
+      font-weight: 600;
+    }
+    .el-tabs__item { color: #c9c2de; }
+    .el-tabs__item.is-active { color: var(--accent); }
+    .el-tabs__active-bar { background-color: var(--accent); }
+    .medal { font-size: 16px; margin-right: 4px; }
+
+    /* ===== 第五人格 · 欧利蒂丝庄园哥特风 ===== */
+    body::before {
+      content: "";
+      position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(ellipse at 15% -10%, rgba(212,175,55,0.10), transparent 45%),
+        radial-gradient(ellipse at 88% 110%, rgba(122,58,168,0.14), transparent 50%),
+        repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,0.01) 3px 4px);
+    }
+    .app-header {
+      background: linear-gradient(180deg, rgba(30,25,44,0.97), rgba(20,18,26,0.95));
+      border-bottom: 1px solid rgba(212,175,55,0.35);
+    }
+    .app-header::after {
+      content: "";
+      position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; pointer-events: none;
+      background: linear-gradient(90deg, transparent, #d4af37 18%, #f7e7a8 50%, #d4af37 82%, transparent);
+    }
+    .brand {
+      font-family: Georgia, "Times New Roman", "Songti SC", serif;
+      letter-spacing: 2px;
+    }
+    .brand .gold {
+      background: linear-gradient(180deg, #f7e7a8 0%, #d4af37 55%, #8f6f1c 100%);
+      -webkit-background-clip: text; background-clip: text;
+      -webkit-text-fill-color: transparent; color: transparent;
+    }
+    .brand .tagline {
+      display: block; font-size: 11px; letter-spacing: 3px; color: #8d84a8;
+      font-family: Georgia, serif; margin-top: 2px;
+    }
+    .page { position: relative; z-index: 1; }
+    .card { position: relative; border: 1px solid rgba(212,175,55,0.25); }
+    .card::before, .card::after {
+      content: "❖"; position: absolute; top: 10px;
+      color: rgba(212,175,55,0.45); font-size: 13px; line-height: 1;
+    }
+    .card::before { left: 14px; }
+    .card::after { right: 14px; }
+    .section-title { font-family: Georgia, serif; letter-spacing: 1px; }
+    .section-title::before { content: "❖ "; color: var(--accent); }
+    h2 { font-family: Georgia, "Songti SC", serif; letter-spacing: 2px; }
+    .rank-table { --el-table-border-color: rgba(212,175,55,0.16); --el-table-header-bg-color: #26203a; }
+    .rank-table .el-table__header th.el-table__cell {
+      background: linear-gradient(180deg, #2e2547, #26203a) !important;
+      color: #ecd99a !important; font-weight: 600;
+      border-bottom: 1px solid rgba(212,175,55,0.3) !important;
+    }
+    .rank-table .el-table__row:hover > td.el-table__cell { background: rgba(212,175,55,0.05) !important; }
+    .rank-table .el-table__cell { background-color: rgba(255,255,255,0.008); }
+    /* 分区横幅：用 ui/ 素材作为 录入 / 计分 / 排行榜 / 我的成绩 的标识 */
+    .sec-banner {
+      position: relative; overflow: hidden; border-radius: 12px;
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 18px; margin-bottom: 18px;
+      border: 1px solid rgba(212,175,55,0.3);
+      box-shadow: 0 8px 26px rgba(0,0,0,0.4);
+    }
+    .sec-banner > img {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: cover; opacity: 0.5;
+    }
+    .sec-banner::after {
+      content: ""; position: absolute; inset: 0;
+      background: linear-gradient(90deg, rgba(16,12,26,0.92) 20%, rgba(16,12,26,0.55) 100%);
+    }
+    .sec-banner-inner { position: relative; z-index: 1; }
+    .sec-banner-title {
+      font-family: Georgia, "Songti SC", serif; font-size: 20px; font-weight: 700;
+      letter-spacing: 3px; color: #f7e7a8; text-shadow: 0 2px 10px rgba(0,0,0,0.6);
+    }
+    .sec-banner-sub { margin-top: 4px; font-size: 12px; color: #b9b1d4; letter-spacing: 1.5px; }
+    /* 异象计分页 */
+    .calc-body { display: flex; gap: 16px; flex-wrap: wrap; }
+    .calc-left { flex: 1 1 220px; min-width: 200px; }
+    .calc-left .preview-img { width: 100%; border-radius: 8px; border: 1px solid rgba(212,175,55,0.35); }
+    .calc-right { flex: 2 1 420px; min-width: 320px; }
+    .score-badge {
+      display: inline-block; min-width: 46px; text-align: center;
+      background: rgba(212,175,55,0.12); border: 1px solid rgba(212,175,55,0.35);
+      color: #f7e7a8; border-radius: 999px; padding: 1px 8px; font-size: 12px;
+    }
+    .calc-sub { color: #b9b1d4; font-family: Georgia, serif; }
+    .calc-total {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      margin-top: 14px; padding: 12px 16px; flex-wrap: wrap;
+      background: rgba(212,175,55,0.08); border: 1px solid rgba(212,175,55,0.3); border-radius: 10px;
+    }
+    .calc-total b { font-size: 20px; font-family: Georgia, serif; }
+    .calc-total .gold { color: #f7e7a8; }
+    .batch-card {
+      border: 1px dashed rgba(212,175,55,0.35); border-radius: 10px;
+      padding: 16px 18px; margin-bottom: 16px;
+      background: rgba(212,175,55,0.03);
+    }
+    .batch-total { font-size: 22px; font-weight: 700; color: #f7e7a8; }
+    .thumb-img { border-radius: 6px; border: 1px solid rgba(212,175,55,0.3); }
+    .medal-first { color: #ffd700; } .medal-second { color: #c0c0c0; } .medal-third { color: #cd7f32; }
+    .el-upload-list--picture-card .el-upload-list__item {
+      background: #1f1b2a; border-color: rgba(212,175,55,0.3);
+    }
+    .el-upload--picture-card {
+      background: rgba(212,175,55,0.06); border-color: rgba(212,175,55,0.3);
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="app-header">
+    <div class="brand">
+      <img class="logo-img" src="/ui/logo.png" alt="ZUL蓝宝石杯 logo">
+      <div>
+        <span><span class="gold">ZUL蓝宝石杯</span> · 第五人格摸金娱乐赛</span>
+        <span class="tagline">✦ 欧利蒂丝庄园 · THE TREASURE HUNT ✦</span>
+      </div>
+    </div>
+    <div class="user-box" v-if="me">
+      <el-tag size="large" effect="dark" type="warning">{{ me.nickname }}</el-tag>
+      <el-button size="small" @click="logout">退出登录</el-button>
+    </div>
+  </div>
+
+  <!-- 未登录：注册 / 登录 -->
+  <div class="auth-wrap" v-if="!me">
+    <div class="card auth-card">
+      <div class="auth-logo"><img src="/ui/logo.png" alt="ZUL蓝宝石杯"></div>
+      <h2 style="text-align:center;margin-top:0;color:var(--accent-light)">ZUL蓝宝石杯 · 选手入口</h2>
+      <el-tabs v-model="authTab" class="auth-tabs">
+        <el-tab-pane label="登录" name="login">
+          <el-form label-position="top" @submit.prevent>
+            <el-form-item label="用户名"><el-input v-model="loginForm.username" placeholder="请输入用户名"></el-input></el-form-item>
+            <el-form-item label="密码"><el-input v-model="loginForm.password" type="password" show-password placeholder="请输入密码" @keyup.enter="login"></el-input></el-form-item>
+            <el-button type="primary" style="width:100%" @click="login">登 录</el-button>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="注册" name="register">
+          <el-form label-position="top" @submit.prevent>
+            <el-form-item label="用户名"><el-input v-model="regForm.username" placeholder="用于登录，例如：DingLing"></el-input></el-form-item>
+            <el-form-item label="昵称"><el-input v-model="regForm.nickname" placeholder="榜单上展示的名字"></el-input></el-form-item>
+            <el-form-item label="密码"><el-input v-model="regForm.password" type="password" show-password placeholder="设置密码"></el-input></el-form-item>
+            <el-button type="primary" style="width:100%" @click="register">注 册</el-button>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
+      <p class="hint" style="text-align:center;margin-bottom:0">注册后即可上传战绩图录入成绩</p>
+    </div>
+  </div>
+
+  <!-- 已登录：主界面 -->
+  <div class="page" v-else>
+    <div class="hero-banner">
+      <div class="hero-title">ZUL<span class="hero-knob">蓝宝石杯</span></div>
+      <div class="hero-sub">✦ 第五人格摸金娱乐赛 · THE TREASURE HUNT ✦</div>
+      <div class="hero-stats">
+        <div class="st" v-if="ranks.best_takeout.length">
+          <b>👑 {{ ranks.best_takeout[0].nickname }}</b>
+          <span>带出之王 · {{ ranks.best_takeout[0].best_value }}</span>
+        </div>
+        <div class="st" v-if="ranks.best_kills.length">
+          <b>💀 {{ ranks.best_kills[0].nickname }}</b>
+          <span>异象之王 · {{ ranks.best_kills[0].best_kills }} 分</span>
+        </div>
+        <div class="st">
+          <b>{{ myResults.length }} 场</b>
+          <span>我的已录入战绩</span>
+        </div>
+      </div>
+    </div>
+    <el-tabs v-model="mainTab">
+      <!-- 战绩录入 -->
+      <el-tab-pane label="🎯 战绩录入" name="entry">
+        <div class="card">
+          <div class="sec-banner">
+            <img src="/ui/2.jpg" alt="战绩录入">
+            <div class="sec-banner-inner">
+              <div class="sec-banner-title">🎯 战绩录入</div>
+              <div class="sec-banner-sub">上传对局截图 · 系统自动识别探索价值 / 带出价值 / 击败异象</div>
+            </div>
+          </div>
+          <div class="section-title">上传战绩图，自动识别成绩</div>
+          <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;flex-wrap:wrap">
+            <el-radio-group v-model="submitType">
+              <el-radio-button :value="'total'">总价值榜（战绩列表）</el-radio-button>
+              <el-radio-button :value="'best'">单场最高榜（结算图）</el-radio-button>
+            </el-radio-group>
+            <el-radio-group v-model="mode" v-if="submitType === 'total'">
+              <el-radio-button :value="false">单人</el-radio-button>
+              <el-radio-button :value="true">双人</el-radio-button>
+            </el-radio-group>
+            <div style="margin-left:auto">
+              <span class="hint" style="margin-right:8px">识别引擎：</span>
+              <el-radio-group v-model="engine" size="small">
+                <el-radio-button :value="'auto'">智能(AI优先)</el-radio-button>
+                <el-radio-button :value="'ai'">视觉AI</el-radio-button>
+                <el-radio-button :value="'ocr'">本地OCR</el-radio-button>
+              </el-radio-group>
+            </div>
+          </div>
+
+          <!-- 总价值榜：时间段 + 多图批量上传累加 -->
+          <template v-if="submitType === 'total'">
+            <el-alert type="info" :closable="false" style="margin-bottom:14px"
+              title="请先选择统计时间段（不超过 2 小时），再上传多张位于该时间段内的对局截图（战绩列表截图或单场结算图均可）；系统将逐张识别并自动累加时间段内的探索价值。"></el-alert>
+            <div class="batch-card">
+              <div class="section-title">① 选择统计时间段</div>
+              <div style="display:flex;gap:12px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+                <span class="hint">统计时间段：</span>
+                <el-date-picker v-model="timeRange" type="datetimerange" range-separator="至" start-placeholder="开始时间" end-placeholder="结束时间"
+                  value-format="YYYY-MM-DDTHH:mm" :default-time="[new Date(2000,0,1,0,0), new Date(2000,0,1,23,59)]" style="width:360px"></el-date-picker>
+                <el-tag v-if="rangeHours" :type="rangeHours > 2 ? 'danger' : 'success'" size="small">{{ rangeHours }} 小时</el-tag>
+              </div>
+
+              <div class="section-title">② 上传多张对局截图（可一次多选，也可多次追加）</div>
+              <div class="upload-area" style="align-items:flex-start">
+                <el-upload
+                  multiple
+                  :auto-upload="false"
+                  v-model:file-list="batchFiles"
+                  accept="image/*"
+                  list-type="picture-card"
+                  :limit="12"
+                  :on-exceed="onBatchExceed"
+                  style="width:100%">
+                  <div class="hint" style="line-height:1.6">🖼️ 点击选择多张图片<br>png / jpg / jpeg / webp / bmp</div>
+                </el-upload>
+                <div style="display:flex;gap:10px;flex-wrap:wrap">
+                  <el-button type="primary" :loading="recognizing" :disabled="!batchFiles.length || !timeRange || timeRange.length !== 2" @click="runBatch">
+                    ⚡ 开始批量识别累加
+                  </el-button>
+                  <el-button v-if="batchItems.length || batchFiles.length" @click="clearBatch">清空</el-button>
+                </div>
+              </div>
+
+              <template v-if="batchItems.length">
+                <div class="section-title" style="margin-top:18px">③ 识别结果（共 {{ batchItems.length }} 张）</div>
+                <el-table :data="batchItems" size="small" class="rank-table" max-height="300" empty-text="暂无结果">
+                  <el-table-column label="图片" width="90">
+                    <template #default="{ row }">
+                      <el-image v-if="row.image_path" :src="imgSrc(row.image_path)" :preview-src-list="imgSrcs(row.image_path)" fit="cover"
+                        style="width:56px;height:56px" class="thumb-img" preview-teleported></el-image>
+                      <span v-else style="color:#888;font-size:12px">-</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="filename" label="文件名" min-width="140" show-overflow-tooltip></el-table-column>
+                  <el-table-column label="类型" width="80">
+                    <template #default="{ row }">
+                      <el-tag size="small" :type="row.kind === 'list' ? 'success' : (row.kind === 'single' ? 'primary' : 'danger')">
+                        {{ row.kind === 'list' ? '列表' : (row.kind === 'single' ? '单场' : '失败') }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="引擎" width="80">
+                    <template #default="{ row }"><span class="hint">{{ row.engine === 'ai' ? '视觉AI' : (row.engine === 'ocr' ? '本地OCR' : '-') }}</span></template>
+                  </el-table-column>
+                  <el-table-column label="计入价值" width="120" sortable>
+                    <template #default="{ row }">
+                      <span v-if="row.error" style="color:#e06a6a;font-size:12px" :title="row.error">出错</span>
+                      <span v-else style="font-weight:600;color:var(--accent-light)">{{ row.sub_total }}</span>
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <el-alert type="success" :closable="false" style="margin-top:12px"
+                  :title="`批量累加完成：${successCount}/${batchItems.length} 张识别成功，时间段内探索价值合计 ` + batchTotal + '（已自动填入下方合计，可手动微调）'"></el-alert>
+              </template>
+
+              <el-divider content-position="left" style="margin-bottom:0"><span class="hint">或直接上传一张完整的战绩列表截图（一屏多场）</span></el-divider>
+            </div>
+          </template>
+          <!-- 单场最高榜：单场结算图 -->
+          <el-alert v-else type="info" :closable="false" style="margin-bottom:14px"
+            title="请上传【单场结算页】截图（含探索价值/带出价值/击败异象三个标签）；勿上传战绩列表汇总页。"></el-alert>
+
+          <el-upload
+            drag
+            :show-file-list="false"
+            :http-request="uploadShot"
+            accept="image/*"
+            style="margin-bottom:16px">
+            <el-icon style="font-size:40px;color:#d4af37"><i>📷</i></el-icon>
+            <div style="margin:6px 0 4px">拖拽战绩截图到这里，或 <em>点击上传</em></div>
+            <div class="hint">支持 png / jpg / jpeg / webp / bmp，识别结果可手动修改；视觉AI识别更准，本地OCR无需联网</div>
+          </el-upload>
+
+          <div v-if="preview" style="display:flex;gap:24px;flex-wrap:wrap">
+            <div style="flex:0 0 220px">
+              <img :src="preview" class="preview-img" alt="战绩图">
+              <p class="hint" style="text-align:center">识别原图</p>
+            </div>
+            <el-form label-width="120px" style="flex:1;min-width:280px">
+              <!-- 总价值模式：展示时间段内场次 -->
+              <template v-if="submitType === 'total'">
+                <el-form-item :label="batchActive ? '批量识别' : '识别场次数'">
+                  <template v-if="batchActive">
+                    <span>{{ successCount }} 张识别成功（共 {{ batchItems.length }} 张，见上方表格）</span>
+                  </template>
+                  <template v-else>
+                    <span>{{ listMatches.length }} 场（{{ listInRange }} 场在时间段内）</span>
+                  </template>
+                </el-form-item>
+                <el-form-item label="时间段内合计">
+                  <el-input-number v-model="parsed.explore_value" :min="0" :precision="2" :controls="false" style="width:100%" placeholder="时间段内探索价值总和"></el-input-number>
+                  <div class="hint" style="margin-top:6px">批量上传时已自动累加各张在时间段内的探索价值，可手动微调</div>
+                </el-form-item>
+                <el-form-item v-if="listMatches.length && !batchActive" label="识别明细">
+                  <div style="width:100%">
+                    <el-table :data="listMatches" size="small" max-height="220" empty-text="未识别到场次">
+                      <el-table-column label="时间" width="130">
+                        <template #default="{ row }">{{ row.time }}</template>
+                      </el-table-column>
+                      <el-table-column label="探索价值" width="110">
+                        <template #default="{ row }">{{ row.explore_value }}</template>
+                      </el-table-column>
+                      <el-table-column label="是否在时间段内">
+                        <template #default="{ row }">
+                          <el-tag :type="row.in_range ? 'success' : 'info'" size="small">{{ row.in_range ? '计入' : '不计' }}</el-tag>
+                        </template>
+                      </el-table-column>
+                    </el-table>
+                  </div>
+                </el-form-item>
+              </template>
+              <!-- 单场最高模式：结算图字段 -->
+              <template v-else>
+                <el-form-item label="带出价值">
+                  <el-input-number v-model="parsed.takeout_value" :min="0" :precision="2" :controls="false" style="width:100%" placeholder="本场带出价值"></el-input-number>
+                </el-form-item>
+                <el-form-item label="击败异象(只数)">
+                  <el-input-number v-model="parsed.kills" :min="0" :precision="0" :controls="false" style="width:100%" placeholder="击败异象总只数（新规则：按图标数量累加）"></el-input-number>
+                </el-form-item>
+                <el-form-item label="击败异象总分">
+                  <el-input-number v-model="parsed.kills_score" :min="0" :precision="2" :controls="false" style="width:100%" placeholder="Σ 各异象图标 分值×个数（新规则）"></el-input-number>
+                  <div class="hint" style="margin-top:6px">新规则：结算图右下角为各异象图标数量，系统自动按「图标分值 × 个数」累加总分</div>
+                </el-form-item>
+                <el-form-item v-if="killsDetail.length" label="图标明细">
+                  <div style="width:100%">
+                    <el-table :data="killsDetail" size="small" max-height="240" class="rank-table">
+                      <el-table-column label="图标" prop="name" min-width="130"></el-table-column>
+                      <el-table-column label="数量" width="70" prop="count"></el-table-column>
+                      <el-table-column label="单个分值" width="90">
+                        <template #default="{ row }">{{ row.score }}</template>
+                      </el-table-column>
+                      <el-table-column label="小计" width="90">
+                        <template #default="{ row }"><span style="color:var(--accent-light);font-weight:600">{{ row.sub }}</span></template>
+                      </el-table-column>
+                    </el-table>
+                    <p class="hint" style="margin:8px 0 0">AI 识别合计 <span style="color:var(--accent-light);font-weight:700">{{ killsScore }}</span> 分（共 {{ killsTotal }} 只）</p>
+                  </div>
+                </el-form-item>
+                <!-- 人工录入异象：13 种异象表格，供核对/手动填写数量 -->
+                <el-form-item label="人工录入异象">
+                  <div style="width:100%">
+                    <p class="hint" style="margin-bottom:6px">AI 识别可能遗漏或误判，可在此手动填写各异象数量（只填你确认有的）；<b>填写后将以人工数据为准提交</b>。</p>
+                    <el-table :data="iconList" size="small" max-height="320" class="rank-table">
+                      <el-table-column label="异象" prop="name" min-width="130"></el-table-column>
+                      <el-table-column label="分值" width="80">
+                        <template #default="{ row }">{{ row.score }}</template>
+                      </el-table-column>
+                      <el-table-column label="数量" width="120">
+                        <template #default="{ row }">
+                          <el-input-number v-model="manualKills[row.name]" :min="0" :precision="0" :controls="false" size="small" style="width:100%" placeholder="0"></el-input-number>
+                        </template>
+                      </el-table-column>
+                      <el-table-column label="小计" width="90">
+                        <template #default="{ row }"><span style="color:var(--accent-light)">{{ (Number(manualKills[row.name]) || 0) * row.score }}</span></template>
+                      </el-table-column>
+                    </el-table>
+                    <p class="hint" style="margin:8px 0 0">人工合计 <span style="color:var(--accent-light);font-weight:700">{{ manualScore }}</span> 分（共 {{ manualTotal }} 只）</p>
+                    <el-alert v-if="manualTotal > 0" :type="manualConsistent ? 'success' : 'warning'" :closable="false" style="margin-top:8px">
+                      <template #title>
+                        <span v-if="manualConsistent">✓ 人工数据与 AI 识别一致（{{ killsScore }} 分 / {{ killsTotal }} 只）</span>
+                        <span v-else>⚠️ 人工数据与 AI 识别不一致：AI 为 {{ killsScore }} 分 / {{ killsTotal }} 只，提交将以人工数据为准</span>
+                      </template>
+                    </el-alert>
+                  </div>
+                </el-form-item>
+              </template>
+
+              <!-- 校对区：选手自算数据 -->
+              <el-divider content-position="left"><span class="hint">📝 自算数据校对（填你提前手算的数值，与识别结果对比）</span></el-divider>
+              <template v-if="submitType === 'total'">
+                <el-form-item label="我自算的总价值">
+                  <el-input-number v-model="calc.explore" :min="0" :precision="2" :controls="false" style="width:100%" placeholder="自己手动算出的时间段总价值"></el-input-number>
+                </el-form-item>
+              </template>
+              <template v-else>
+                <el-form-item label="我自算的带出价值">
+                  <el-input-number v-model="calc.takeout" :min="0" :precision="2" :controls="false" style="width:100%" placeholder="自己手动算出的带出价值"></el-input-number>
+                </el-form-item>
+                <el-form-item label="我自算的击败异象">
+                  <el-input-number v-model="calc.kills" :min="0" :precision="0" :controls="false" style="width:100%" placeholder="自己数出的击败异象只数"></el-input-number>
+                </el-form-item>
+                <el-form-item label="我自算的异象总分">
+                  <el-input-number v-model="calc.killsScore" :min="0" :precision="2" :controls="false" style="width:100%" placeholder="自己按「图标分值×个数」手算的总分（新规则）"></el-input-number>
+                </el-form-item>
+              </template>
+              <el-alert v-if="calcMismatch" type="warning" :closable="false" style="margin-bottom:12px"
+                :title="'⚠️ 识别值与自算值不一致，请确认以哪个为准（可修改识别结果或提交自算值后联系管理员）'"></el-alert>
+
+              <el-form-item label="队友用户名" v-if="mode">
+                <el-input v-model="partner" placeholder="双人场次请填写队友用户名（须已注册）"></el-input>
+              </el-form-item>
+              <el-form-item label="组队码" v-if="mode">
+                <el-input v-model="teamCode" placeholder="双方填同一组队码以关联成绩" style="width:100%">
+                  <template #append>
+                    <el-button @click="genTeamCode">重新生成</el-button>
+                  </template>
+                </el-input>
+                <div class="hint" style="line-height:1.5;margin-top:6px">将组队码告诉队友，队友提交时填入相同组队码，双人成绩即可自动合并</div>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" :loading="submitting" @click="submitResult">确认提交成绩</el-button>
+              </el-form-item>
+              <el-collapse v-if="ocrRaw">
+                <el-collapse-item title="查看 OCR 识别原文（如数值不准确，可复制此文本给管理员调优）" name="raw">
+                  <pre style="white-space:pre-wrap;word-break:break-all;background:#14121a;color:#d9d2ec;border-radius:8px;padding:12px;margin:0;max-height:200px;overflow:auto">{{ ocrRaw }}</pre>
+                </el-collapse-item>
+              </el-collapse>
+            </el-form>
+          </div>
+          <p v-else class="hint">请先上传一张清晰的战绩截图</p>
+        </div>
+      </el-tab-pane>
+
+      <!-- 异象计分 -->
+      <el-tab-pane label="👾 异象计分" name="calc">
+        <div class="card">
+          <div class="sec-banner">
+            <img src="/ui/5.jpg" alt="异象计分">
+            <div class="sec-banner-inner">
+              <div class="sec-banner-title">👾 异象计分</div>
+              <div class="sec-banner-sub">13 种异象按「图标分值 × 个数」累计 · 可识别自动填入，也可手动计分</div>
+            </div>
+          </div>
+          <el-alert type="info" :closable="false" style="margin-bottom:14px"
+            title="上传【单场结算页】截图：系统自动识别带出价值，并尽可能识别右下角击败异象图标数量填入下表；核对后可手动修改数量，总分实时计算，确认后一键提交到「单场最高带出 / 击败异象」榜。"></el-alert>
+
+          <el-upload
+            drag
+            :show-file-list="false"
+            :http-request="uploadCalcShot"
+            accept="image/*"
+            style="margin-bottom:16px">
+            <el-icon style="font-size:40px;color:#d4af37"><i>👾</i></el-icon>
+            <div style="margin:6px 0 4px">拖拽单场结算截图到这里，或 <em>点击上传</em></div>
+            <div class="hint">识别后自动填入数量；可手动修改，总分实时计算</div>
+          </el-upload>
+
+          <div v-if="calcImagePath" class="calc-body">
+            <div class="calc-left">
+              <img :src="calcPreview" class="preview-img" alt="结算图">
+              <p class="hint" style="text-align:center">识别原图</p>
+            </div>
+            <div class="calc-right">
+              <el-form label-width="110px" style="margin-bottom:4px">
+                <el-form-item label="带出价值">
+                  <el-input-number v-model="calcTakeout" :min="0" :precision="2" :controls="false" style="width:100%" placeholder="本场带出价值"></el-input-number>
+                </el-form-item>
+              </el-form>
+              <div class="section-title" style="font-size:14px">13 种异象 · 图标分值 × 个数</div>
+              <el-table :data="iconList" size="small" max-height="420" empty-text="暂无图标库" class="rank-table">
+                <el-table-column label="#" width="44">
+                  <template #default="{ $index }">{{ $index + 1 }}</template>
+                </el-table-column>
+                <el-table-column label="异象" prop="name" min-width="140"></el-table-column>
+                <el-table-column label="分值" width="84">
+                  <template #default="{ row }"><span class="score-badge">{{ row.score }}</span></template>
+                </el-table-column>
+                <el-table-column label="数量" width="120">
+                  <template #default="{ row }">
+                    <el-input-number v-model="calcKills[row.name]" :min="0" :precision="0" :controls="false" size="small" style="width:100%" placeholder="0"></el-input-number>
+                  </template>
+                </el-table-column>
+                <el-table-column label="小计" width="96">
+                  <template #default="{ row }"><span class="calc-sub">{{ ((Number(calcKills[row.name]) || 0) * row.score).toFixed(1).replace(/\.0$/, '') }}</span></template>
+                </el-table-column>
+              </el-table>
+              <div class="calc-total">
+                <div>
+                  击败异象 <b>{{ calcTotalCount }}</b> 只 &nbsp;·&nbsp; 总分
+                  <b class="gold">{{ calcTotalScore }}</b> 分
+                </div>
+                <el-button type="primary" :loading="submitting" @click="submitCalc">提交到单场榜</el-button>
+              </div>
+            </div>
+          </div>
+          <p v-else class="hint">请先上传一张清晰的单场结算截图</p>
+        </div>
+      </el-tab-pane>
+
+      <!-- 排行榜 -->
+      <el-tab-pane label="🏆 排行榜" name="ranking">
+        <div class="card">
+          <div class="sec-banner">
+            <img src="/ui/3.jpg" alt="排行榜">
+            <div class="sec-banner-inner">
+              <div class="sec-banner-title">🏆 排行榜</div>
+              <div class="sec-banner-sub">单人总价值 · 双人组合 · 单场最高带出 · 击败异象</div>
+            </div>
+          </div>
+          <el-tabs v-model="rankTab">
+            <el-tab-pane label="单人总价值" name="single">
+              <el-table :data="ranks.single_total" size="large" empty-text="暂无数据" class="rank-table">
+                <el-table-column label="排名" width="90">
+                  <template #default="{ row }">
+                    <span v-if="row.rank <= 3" class="medal" :class="'medal-' + ['first','second','third'][row.rank-1]">{{ ['🥇','🥈','🥉'][row.rank-1] }}</span>
+                    <span class="rank-no" v-else>{{ row.rank }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="nickname" label="选手"></el-table-column>
+                <el-table-column prop="username" label="用户名"></el-table-column>
+                <el-table-column label="探索价值（最高一次累计）" sortable>
+                  <template #default="{ row }"><span style="font-weight:600;color:var(--accent-light)">{{ row.total_value }}</span></template>
+                </el-table-column>
+                <el-table-column label="提交图片" width="100">
+                  <template #default="{ row }">
+                    <el-image v-if="row.image_path" :src="imgSrc(row.image_path)" :preview-src-list="imgSrcs(row.image_path)" fit="cover"
+                      style="width:56px;height:56px" class="thumb-img" preview-teleported></el-image>
+                    <span v-else style="color:#888;font-size:12px">-</span>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+            <el-tab-pane label="双人总价值" name="duo">
+              <el-table :data="ranks.duo_total" size="large" empty-text="暂无数据" class="rank-table">
+                <el-table-column label="排名" width="90">
+                  <template #default="{ row }">
+                    <span v-if="row.rank <= 3" class="medal" :class="'medal-' + ['first','second','third'][row.rank-1]">{{ ['🥇','🥈','🥉'][row.rank-1] }}</span>
+                    <span class="rank-no" v-else>{{ row.rank }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="双人组合">
+                  <template #default="{ row }">{{ row.members.map(m => m.nickname).join(' + ') }}</template>
+                </el-table-column>
+                <el-table-column label="总价值（两人合计）" sortable>
+                  <template #default="{ row }"><span style="font-weight:600;color:var(--accent-light)">{{ row.total_value }}</span></template>
+                </el-table-column>
+                <el-table-column label="提交图片" width="140">
+                  <template #default="{ row }">
+                    <div style="display:flex;gap:6px">
+                      <template v-for="m in row.members" :key="m.uid">
+                        <el-image v-if="m.image_path" :src="imgSrc(m.image_path)" :preview-src-list="imgSrcs(m.image_path)" fit="cover"
+                          style="width:48px;height:48px" class="thumb-img" preview-teleported></el-image>
+                        <span v-else style="color:#888;font-size:12px">-</span>
+                      </template>
+                    </div>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+            <el-tab-pane label="单场最高带出" name="takeout">
+              <el-table :data="ranks.best_takeout" size="large" empty-text="暂无数据" class="rank-table">
+                <el-table-column label="排名" width="90">
+                  <template #default="{ row }">
+                    <span v-if="row.rank <= 3" class="medal" :class="'medal-' + ['first','second','third'][row.rank-1]">{{ ['🥇','🥈','🥉'][row.rank-1] }}</span>
+                    <span class="rank-no" v-else>{{ row.rank }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="nickname" label="选手"></el-table-column>
+                <el-table-column prop="username" label="用户名"></el-table-column>
+                <el-table-column label="最高带出价值" sortable>
+                  <template #default="{ row }"><span style="font-weight:600;color:var(--accent-light)">{{ row.best_value }}</span></template>
+                </el-table-column>
+                <el-table-column label="提交图片" width="100">
+                  <template #default="{ row }">
+                    <el-image v-if="row.image_path" :src="imgSrc(row.image_path)" :preview-src-list="imgSrcs(row.image_path)" fit="cover"
+                      style="width:56px;height:56px" class="thumb-img" preview-teleported></el-image>
+                    <span v-else style="color:#888;font-size:12px">-</span>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+            <el-tab-pane label="击败异象" name="kills">
+              <el-table :data="ranks.best_kills" size="large" empty-text="暂无数据" class="rank-table">
+                <el-table-column label="排名" width="90">
+                  <template #default="{ row }">
+                    <span v-if="row.rank <= 3" class="medal" :class="'medal-' + ['first','second','third'][row.rank-1]">{{ ['🥇','🥈','🥉'][row.rank-1] }}</span>
+                    <span class="rank-no" v-else>{{ row.rank }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="nickname" label="选手"></el-table-column>
+                <el-table-column prop="username" label="用户名"></el-table-column>
+                <el-table-column label="异象总分（新规则）" sortable>
+                  <template #default="{ row }">
+                    <span style="font-weight:600;color:var(--accent-light)">{{ row.best_kills }}</span>
+                    <span class="hint" v-if="row.kills_total">（{{ row.kills_total }} 只）</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="明细" width="70">
+                  <template #default="{ row }">
+                    <el-popover v-if="row.kills_detail" trigger="hover" width="300">
+                      <template #reference><el-button link type="primary" size="small">查看</el-button></template>
+                      <div class="section-title" style="font-size:14px;margin-bottom:8px">图标明细（分值×个数）</div>
+                      <el-table :data="parseDetail(row.kills_detail)" size="small">
+                        <el-table-column prop="name" label="图标" min-width="110"></el-table-column>
+                        <el-table-column prop="count" label="数" width="60"></el-table-column>
+                        <el-table-column label="小计" width="80">
+                          <template #default="{ row: d }"><span style="color:var(--accent-light)">{{ d.sub }}</span></template>
+                        </el-table-column>
+                      </el-table>
+                    </el-popover>
+                    <span v-else style="color:#888;font-size:12px">-</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="提交图片" width="100">
+                  <template #default="{ row }">
+                    <el-image v-if="row.image_path" :src="imgSrc(row.image_path)" :preview-src-list="imgSrcs(row.image_path)" fit="cover"
+                      style="width:56px;height:56px" class="thumb-img" preview-teleported></el-image>
+                    <span v-else style="color:#888;font-size:12px">-</span>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </el-tab-pane>
+          </el-tabs>
+        </div>
+      </el-tab-pane>
+
+      <!-- 我的成绩 -->
+      <el-tab-pane label="📋 我的成绩" name="mine">
+        <div class="card">
+          <div class="sec-banner">
+            <img src="/ui/7.jpg" alt="我的成绩">
+            <div class="sec-banner-inner">
+              <div class="sec-banner-title">📋 我的成绩</div>
+              <div class="sec-banner-sub">查看我提交的所有场次 · 类型 / 数值 / 异象 / 时间段</div>
+            </div>
+          </div>
+          <div class="section-title">我提交的场次</div>
+          <el-table :data="myResults" size="large" empty-text="还没有提交过成绩" class="rank-table">
+            <el-table-column prop="match_id" label="场次" width="120"></el-table-column>
+            <el-table-column label="类型" width="90">
+              <template #default="{ row }">{{ row.submit_type === 'total' ? (row.is_duo ? '双人总价值' : '单人总价值') : '单场最高' }}</template>
+            </el-table-column>
+            <el-table-column prop="explore_value" label="总价值/探索"></el-table-column>
+            <el-table-column prop="takeout_value" label="带出价值"></el-table-column>
+            <el-table-column prop="kills" label="异象只数" width="90"></el-table-column>
+            <el-table-column label="异象总分" width="90">
+              <template #default="{ row }">
+                <span v-if="row.kills_score !== null && row.kills_score !== undefined">{{ row.kills_score }}</span>
+                <span v-else style="color:#888">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="时间段" width="230">
+              <template #default="{ row }">
+                <span v-if="row.time_start">{{ row.time_start.slice(5,16).replace('T',' ') }} ~ {{ row.time_end.slice(5,16).replace('T',' ') }}</span>
+                <span v-else>-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="自算值" width="170">
+              <template #default="{ row }">
+                <span v-if="row.calc_explore !== null || row.calc_takeout !== null || row.calc_kills !== null || row.calc_kills_score !== null" style="font-size:12px;color:#a0a0b8">
+                  {{ row.calc_explore !== null ? '探:' + row.calc_explore : '' }} {{ row.calc_takeout !== null ? '带:' + row.calc_takeout : '' }} {{ row.calc_kills !== null ? '击:' + row.calc_kills : '' }} {{ row.calc_kills_score !== null ? '异分:' + row.calc_kills_score : '' }}
+                </span>
+                <span v-else style="color:#888">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="战绩图" width="100">
+              <template #default="{ row }">
+                <el-image v-if="row.image_path" :src="imgSrc(row.image_path)" :preview-src-list="imgSrcs(row.image_path)" fit="cover"
+                  style="width:56px;height:56px;border-radius:6px" class="thumb-img" preview-teleported></el-image>
+                <span v-else style="color:#888">-</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="状态" width="90">
+              <template #default="{ row }">
+                <el-tag :type="row.confirmed ? 'success' : 'warning'" size="small">{{ row.confirmed ? '已入榜' : '待队友' }}</el-tag>
+              </template>
+            </el-table-column>
+
+          </el-table>
+        </div>
+      </el-tab-pane>
+    </el-tabs>
+  </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="https://unpkg.com/element-plus/dist/index.full.min.js"></script>
+<script src="https://unpkg.com/element-plus/dist/locale/zh-cn.min.js"></script>
+<script>
+const { createApp, ref, reactive, computed, onMounted } = Vue;
+
+createApp({
+  setup() {
+    const API_BASE = (window.__MOJIN_API_BASE__ || '').replace(/\/+$/, '');
+    const me = ref(null);
+    const token = ref(localStorage.getItem('token') || '');
+    const authTab = ref('login');
+    const loginForm = reactive({ username: '', password: '' });
+    const regForm = reactive({ username: '', nickname: '', password: '' });
+    const mainTab = ref('entry');
+    const rankTab = ref('single');
+    const submitType = ref('total');
+    const mode = ref(false);
+    const parsed = reactive({ explore_value: null, takeout_value: null, kills: null, kills_score: null, kills_detail: [] });
+    const calc = reactive({ explore: null, takeout: null, kills: null, killsScore: null });
+    const timeRange = ref([]);
+    const listMatches = ref([]);
+    const imagePath = ref('');
+    const preview = ref('');
+    const partner = ref('');
+    const teamCode = ref('');
+    const ocrRaw = ref('');
+    const engine = ref('auto');
+    const submitting = ref(false);
+    // 总价值榜：多图批量上传
+    const batchFiles = ref([]);
+    const batchItems = ref([]);
+    const recognizing = ref(false);
+    const batchActive = ref(false);
+    // 人工录入异象：13 种异象图标库与手动数量
+    const iconList = ref([]);
+    const manualKills = reactive({});
+    const manualScore = computed(() => Math.round(iconList.value.reduce((s, ic) => s + (Number(manualKills[ic.name]) || 0) * (ic.score || 0), 0) * 100) / 100);
+    const manualTotal = computed(() => iconList.value.reduce((s, ic) => s + (Number(manualKills[ic.name]) || 0), 0));
+    // 异象计分页：独立状态（13 异象表格 + 自动总分）
+    const calcPreview = ref('');
+    const calcImagePath = ref('');
+    const calcTakeout = ref(null);
+    const calcKills = reactive({});
+    const calcTotalScore = computed(() => Math.round(iconList.value.reduce((s, ic) => s + (Number(calcKills[ic.name]) || 0) * (ic.score || 0), 0) * 100) / 100);
+    const calcTotalCount = computed(() => iconList.value.reduce((s, ic) => s + (Number(calcKills[ic.name]) || 0), 0));
+    // 人工数据是否与 AI 识别一致（总只数与总分都一致）
+    const manualConsistent = computed(() => manualTotal.value > 0 && manualTotal.value === killsTotal.value && Math.abs(manualScore.value - killsScore.value) < 0.01);
+    const loadIcons = async () => {
+      try {
+        const d = await api('/api/icons/list');
+        iconList.value = (d.icons || []).map(ic => ({ name: ic.name, score: Number(ic.score) || 0 }));
+        iconList.value.forEach(ic => { if (manualKills[ic.name] === undefined) manualKills[ic.name] = 0; });
+      } catch (e) { /* 图标库加载失败则仅显示已有明细 */ }
+    };
+
+    const rangeHours = computed(() => {
+      if (!timeRange.value || timeRange.value.length !== 2) return null;
+      const s = new Date(timeRange.value[0]), e = new Date(timeRange.value[1]);
+      return Math.round((e - s) / 3600000 * 100) / 100;
+    });
+    const listInRange = computed(() => listMatches.value.filter(m => m.in_range).length);
+    // 批量识别：成功张数与合计
+    const successCount = computed(() => batchItems.value.filter(i => !i.error).length);
+    const batchTotal = computed(() => Math.round(batchItems.value.reduce((s, i) => s + (i.sub_total || 0), 0) * 100) / 100);
+    // 击败异象新规则：图标明细与总分
+    const killsDetail = computed(() => Array.isArray(parsed.kills_detail) ? parsed.kills_detail : []);
+    const killsScore = computed(() => {
+      const s = killsDetail.value.reduce((sum, d) => sum + (Number(d.sub) || 0), 0);
+      return s > 0 ? s : (parsed.kills_score || 0);
+    });
+    const killsTotal = computed(() => killsDetail.value.reduce((sum, d) => sum + (Number(d.count) || 0), 0));
+    // 图片辅助：image_path 可能为逗号分隔的多图（批量上传）
+    const imgSrc = (p) => {
+      if (!p) return '';
+      const first = String(p).split(',')[0].trim();
+      return '/uploads/' + first.split(/[\\/]/).pop();
+    };
+    const imgSrcs = (p) => String(p || '').split(',').map(s => s.trim()).filter(Boolean).map(s => '/uploads/' + s.split(/[\\/]/).pop());
+    const parseDetail = (s) => {
+      if (!s) return [];
+      if (Array.isArray(s)) return s;
+      try { const a = JSON.parse(s); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+    };
+    const calcMismatch = computed(() => {
+      if (submitType.value === 'total') {
+        return calc.explore !== null && calc.explore !== undefined
+          && parsed.explore_value !== null && parsed.explore_value !== undefined
+          && Math.abs(calc.explore - parsed.explore_value) > 0.01;
+      }
+      return (calc.takeout !== null && calc.takeout !== undefined
+          && parsed.takeout_value !== null && parsed.takeout_value !== undefined
+          && Math.abs(calc.takeout - parsed.takeout_value) > 0.01)
+        || (calc.kills !== null && calc.kills !== undefined
+          && parsed.kills !== null && parsed.kills !== undefined
+          && calc.kills !== parsed.kills)
+        || (calc.killsScore !== null && calc.killsScore !== undefined
+          && parsed.kills_score !== null && parsed.kills_score !== undefined
+          && Math.abs(calc.killsScore - parsed.kills_score) > 0.01);
+    });
+
+    const genTeamCode = () => {
+      teamCode.value = 'MOJIN' + Math.random().toString(36).slice(2, 6).toUpperCase();
+    };
+    const ranks = reactive({ single_total: [], duo_total: [], best_takeout: [], best_kills: [] });
+    const myResults = ref([]);
+
+    const api = async (url, options = {}) => {
+      const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+      if (token.value) headers['Authorization'] = 'Bearer ' + token.value;
+      const res = await fetch(API_BASE + url, { ...options, headers });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = (data && data.detail) || '请求失败';
+        if (res.status === 401) { me.value = null; token.value = ''; localStorage.removeItem('token'); }
+        throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg));
+      }
+      return data;
+    };
+
+    const setMe = (u) => {
+      me.value = u;
+      token.value = localStorage.getItem('token') || '';
+    };
+
+    const login = async () => {
+      try {
+        const data = await api('/api/login', { method: 'POST', body: JSON.stringify(loginForm) });
+        localStorage.setItem('token', data.token);
+        setMe(data.user);
+        ElementPlus.ElMessage.success('登录成功');
+        loadRankings(); loadMyResults();
+      } catch (e) { ElementPlus.ElMessage.error(e.message); }
+    };
+
+    const register = async () => {
+      try {
+        const data = await api('/api/register', { method: 'POST', body: JSON.stringify(regForm) });
+        localStorage.setItem('token', data.token);
+        setMe(data.user);
+        ElementPlus.ElMessage.success('注册成功，欢迎参加 ZUL蓝宝石杯！');
+      } catch (e) { ElementPlus.ElMessage.error(e.message); }
+    };
+
+    const logout = () => {
+      localStorage.removeItem('token');
+      me.value = null;
+      token.value = '';
+    };
+
+    const uploadShot = async ({ file }) => {
+      batchActive.value = false;
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('engine', engine.value);
+      fd.append('mode', submitType.value);
+      if (submitType.value === 'total') {
+        if (!timeRange.value || timeRange.value.length !== 2) {
+          ElementPlus.ElMessage.warning('请先选择统计时间段（不超过 2 小时）');
+          return;
+        }
+        fd.append('time_start', timeRange.value[0]);
+        fd.append('time_end', timeRange.value[1]);
+      }
+      try {
+        const data = await fetch(API_BASE + '/api/ocr', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token.value },
+          body: fd,
+        }).then(r => r.json());
+        if (data.detail) throw new Error(data.detail);
+        imagePath.value = data.image_path;
+        preview.value = '/uploads/' + data.image_path.split(/[\\/]/).pop();
+        if (data.mode === 'list') {
+          parsed.explore_value = data.total_in_range;
+          parsed.takeout_value = null; parsed.kills = null;
+          const inRangeSet = new Set((data.in_range || []).map(r => r.time));
+          listMatches.value = (data.matches || []).map(m => ({
+            time: m.time,
+            explore_value: m.explore_value,
+            in_range: inRangeSet.has(m.time),
+          }));
+          ocrRaw.value = '';
+          const engineLabel = data.engine === 'ai' ? '视觉AI' : '本地OCR';
+          ElementPlus.ElMessage.success(`已识别 ${data.in_range.length} 场在时间段内，合计 ${data.total_in_range}`);
+        } else {
+          parsed.explore_value = data.explore_value;
+          parsed.takeout_value = data.takeout_value;
+          parsed.kills = data.kills;
+          parsed.kills_score = data.kills_score !== undefined ? data.kills_score : null;
+          parsed.kills_detail = data.kills_detail || [];
+          listMatches.value = [];
+          ocrRaw.value = data.raw_text || '';
+          const engineLabel = data.engine === 'ai' ? '视觉AI' : (data.fallback === 'ocr' ? '本地OCR(回退)' : '本地OCR');
+          const tip = parsed.kills_score !== null && parsed.kills_score !== undefined
+            ? `，异象总分 ${parsed.kills_score}（${parsed.kills_detail.length} 类图标）`
+            : '';
+          ElementPlus.ElMessage.success(`识别完成（${engineLabel}）${tip}，请核对数值后提交`);
+        }
+      } catch (e) {
+        ElementPlus.ElMessage.error(e.message || '识别失败');
+      }
+    };
+
+    const onBatchExceed = () => {
+      ElementPlus.ElMessage.warning('单次最多选择 12 张图片');
+    };
+
+    // 总价值榜：多图批量识别并累加
+    const runBatch = async () => {
+      if (!batchFiles.value.length) {
+        ElementPlus.ElMessage.warning('请先选择至少一张对局截图');
+        return;
+      }
+      if (!timeRange.value || timeRange.value.length !== 2) {
+        ElementPlus.ElMessage.warning('请先选择统计时间段');
+        return;
+      }
+      const fd = new FormData();
+      let count = 0;
+      for (const f of batchFiles.value) {
+        if (f.raw) { fd.append('files', f.raw); count++; }
+      }
+      if (!count) { ElementPlus.ElMessage.warning('未读取到有效图片文件'); return; }
+      fd.append('engine', engine.value);
+      fd.append('time_start', timeRange.value[0]);
+      fd.append('time_end', timeRange.value[1]);
+      recognizing.value = true;
+      try {
+        const data = await fetch(API_BASE + '/api/ocr/batch', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token.value },
+          body: fd,
+        }).then(r => r.json());
+        if (data.detail) throw new Error(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail));
+        batchItems.value = data.items || [];
+        parsed.explore_value = data.total_in_range;
+        batchActive.value = true;
+        imagePath.value = data.items.filter(i => i.image_path).map(i => i.image_path).join(',');
+        const first = data.items.find(i => i.image_path);
+        preview.value = first ? '/uploads/' + first.image_path.split(/[\\/]/).pop() : '';
+        listMatches.value = [];
+        ocrRaw.value = '';
+        ElementPlus.ElMessage.success(`批量识别完成：${successCount.value}/${batchItems.value.length} 张成功，累计探索价值 ${data.total_in_range}`);
+      } catch (e) {
+        ElementPlus.ElMessage.error(e.message || '批量识别失败');
+      } finally {
+        recognizing.value = false;
+      }
+    };
+
+    const clearBatch = () => {
+      batchFiles.value = [];
+      batchItems.value = [];
+      if (batchActive.value) {
+        batchActive.value = false;
+        parsed.explore_value = null;
+        imagePath.value = '';
+        preview.value = '';
+      }
+    };
+
+    // 异象计分页：上传结算图并识别
+    const uploadCalcShot = async ({ file }) => {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('engine', 'auto');
+      fd.append('mode', 'best');
+      try {
+        const data = await fetch(API_BASE + '/api/ocr', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + token.value },
+          body: fd,
+        }).then(r => r.json());
+        if (data.detail) throw new Error(data.detail);
+        calcImagePath.value = data.image_path;
+        calcPreview.value = '/uploads/' + data.image_path.split(/[\\/]/).pop();
+        calcTakeout.value = (data.takeout_value !== undefined && data.takeout_value !== null) ? data.takeout_value : null;
+        // 识别明细自动填入数量（按名称匹配 13 种异象）
+        (data.kills_detail || []).forEach(d => {
+          const matched = iconList.value.find(ic =>
+            ic.name === d.name || ic.name.includes(d.name) || d.name.includes(ic.name));
+          if (matched) calcKills[matched.name] = Number(d.count) || 0;
+        });
+        const engineLabel = data.engine === 'ai' ? '视觉AI' : '本地OCR';
+        ElementPlus.ElMessage.success(`识别完成（${engineLabel}），请核对带出价值与异象数量`);
+      } catch (e) {
+        ElementPlus.ElMessage.error(e.message || '识别失败');
+      }
+    };
+
+    // 异象计分页：提交到单场榜
+    const submitCalc = async () => {
+      const detail = iconList.value
+        .filter(ic => (Number(calcKills[ic.name]) || 0) > 0)
+        .map(ic => ({ name: ic.name, count: Number(calcKills[ic.name]), score: ic.score, sub: Math.round(Number(calcKills[ic.name]) * ic.score * 100) / 100 }));
+      if (calcTakeout.value === null && detail.length === 0) {
+        ElementPlus.ElMessage.warning('请先识别带出价值，或填写至少一种异象数量');
+        return;
+      }
+      submitting.value = true;
+      try {
+        await api('/api/results', {
+          method: 'POST',
+          body: JSON.stringify({
+            image_path: calcImagePath.value,
+            match_id: '',
+            is_duo: false,
+            submit_type: 'best',
+            time_start: '', time_end: '',
+            explore_value: 0,
+            takeout_value: calcTakeout.value || 0,
+            kills: detail.reduce((s, d) => s + d.count, 0),
+            kills_score: calcTotalScore.value,
+            kills_detail: JSON.stringify(detail),
+            calc_explore: null, calc_takeout: null, calc_kills: null, calc_kills_score: null,
+            partner_username: '',
+          }),
+        });
+        ElementPlus.ElMessage.success('异象计分已提交并入榜！');
+        calcPreview.value = ''; calcImagePath.value = ''; calcTakeout.value = null;
+        iconList.value.forEach(ic => { calcKills[ic.name] = 0; });
+        loadRankings(); loadMyResults();
+      } catch (e) {
+        ElementPlus.ElMessage.error(e.message);
+      } finally {
+        submitting.value = false;
+      }
+    };
+
+    const submitResult = async () => {
+      if (submitType.value === 'total') {
+        if (!timeRange.value || timeRange.value.length !== 2) {
+          ElementPlus.ElMessage.warning('请先选择统计时间段');
+          return;
+        }
+        if (parsed.explore_value === null || parsed.explore_value === undefined) {
+          ElementPlus.ElMessage.warning('请先上传战绩列表截图并确认合计值');
+          return;
+        }
+      } else {
+        if (imagePath.value && parsed.takeout_value === null && parsed.kills === null && parsed.kills_score === null) {
+          ElementPlus.ElMessage.warning('请先上传单场结算图或填写成绩');
+          return;
+        }
+      }
+      if (mode.value && !teamCode.value.trim()) {
+        ElementPlus.ElMessage.warning('请填写组队码');
+        return;
+      }
+      if (mode.value && !partner.value.trim()) {
+        ElementPlus.ElMessage.warning('请填写队友用户名');
+        return;
+      }
+      submitting.value = true;
+      try {
+        // 人工录入过异象数量（manualTotal>0）时，以人工数据为准覆盖 AI 识别结果
+        const manualDetail = iconList.value
+          .filter(ic => (Number(manualKills[ic.name]) || 0) > 0)
+          .map(ic => ({ name: ic.name, count: Number(manualKills[ic.name]), score: ic.score, sub: Math.round(Number(manualKills[ic.name]) * ic.score * 100) / 100 }));
+        const useManual = manualTotal.value > 0;
+        await api('/api/results', {
+          method: 'POST',
+          body: JSON.stringify({
+            image_path: imagePath.value,
+            match_id: mode.value ? teamCode.value : '',
+            is_duo: mode.value,
+            submit_type: submitType.value,
+            time_start: submitType.value === 'total' ? timeRange.value[0] : '',
+            time_end: submitType.value === 'total' ? timeRange.value[1] : '',
+            explore_value: parsed.explore_value || 0,
+            takeout_value: parsed.takeout_value || 0,
+            kills: useManual ? manualTotal.value : (parsed.kills || 0),
+            kills_score: useManual ? manualScore.value : (parsed.kills_score || 0),
+            kills_detail: useManual ? JSON.stringify(manualDetail) : JSON.stringify(killsDetail.value),
+            calc_explore: calc.explore,
+            calc_takeout: calc.takeout,
+            calc_kills: calc.kills,
+            calc_kills_score: calc.killsScore,
+            partner_username: mode.value ? partner.value : '',
+          }),
+        });
+        ElementPlus.ElMessage.success('成绩已提交并入榜！');
+        imagePath.value = ''; preview.value = '';
+        parsed.explore_value = null; parsed.takeout_value = null; parsed.kills = null;
+        parsed.kills_score = null; parsed.kills_detail = [];
+        calc.explore = null; calc.takeout = null; calc.kills = null; calc.killsScore = null;
+        iconList.value.forEach(ic => { manualKills[ic.name] = 0; });
+        timeRange.value = [];
+        listMatches.value = [];
+        batchFiles.value = []; batchItems.value = []; batchActive.value = false;
+        partner.value = '';
+        teamCode.value = '';
+        ocrRaw.value = '';
+        loadRankings(); loadMyResults();
+      } catch (e) { ElementPlus.ElMessage.error(e.message); }
+      finally { submitting.value = false; }
+    };
+
+    const loadRankings = async () => {
+      try {
+        const data = await api('/api/rankings/1');
+        ranks.single_total = data.single_total;
+        ranks.duo_total = data.duo_total;
+        ranks.best_takeout = data.best_takeout;
+        ranks.best_kills = data.best_kills;
+      } catch (e) { /* 未登录时忽略 */ }
+    };
+
+    const loadMyResults = async () => {
+      if (!token.value) return;
+      try { myResults.value = await api('/api/my/results'); } catch (e) {}
+    };
+
+    onMounted(async () => {
+      loadIcons();
+      if (token.value) {
+        try {
+          const u = await api('/api/me');
+          me.value = u;
+          loadRankings(); loadMyResults();
+        } catch (e) { localStorage.removeItem('token'); }
+      }
+      loadRankings();
+    });
+
+    return {
+      me, authTab, loginForm, regForm, mainTab, rankTab, submitType, mode, parsed, calc,
+      timeRange, listMatches, rangeHours, listInRange, calcMismatch,
+      imagePath, preview, partner, teamCode, ocrRaw, engine, submitting, ranks, myResults,
+      login, register, logout, uploadShot, submitResult, genTeamCode,
+      batchFiles, batchItems, recognizing, batchActive,
+      successCount, batchTotal, killsDetail, killsScore, killsTotal,
+      imgSrc, imgSrcs, parseDetail, runBatch, clearBatch, onBatchExceed,
+      iconList, manualKills, manualScore, manualTotal, manualConsistent,
+    };
+  }
+}).use(ElementPlus, { locale: ElementPlusLocaleZhCn }).mount('#app');
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+# 密钥与环境变量
+.env
+*.env
+
+# 依赖
+node_modules/
+
+# 数据库文件
+*.db
+
+# 用户上传文件
+uploads/
+
+# Python 虚拟环境
+.venv/
+venv/
+
+# Python 缓存
+__pycache__/
+*.pyc
+*.pyo
+
+# 临时文件
+_tmp/
+
+# IDE
+.vscode/
+.idea/
+
+# CloudBase 本地临时文件
+mojin-backend/
+
+# 系统文件
+.DS_Store
+Thumbs.db
