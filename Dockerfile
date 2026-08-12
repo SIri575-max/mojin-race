@@ -4,7 +4,7 @@ WORKDIR /app
 
 # 安装 onnxruntime 所需的系统库
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 libxrender-dev libgomp1 \
+    libgl1 libglib2.0-0 libsm6 libxext6 libxrender-dev libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 Python 依赖（包含 rapidocr_onnxruntime）
