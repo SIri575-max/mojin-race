@@ -673,8 +673,10 @@ def admin_import(data: AdminImportIn, db: Session = Depends(get_db)):
     """导入数据快照，用于部署后恢复账号与成绩。overwrite=true 时先清空再导入。"""
     if data.overwrite:
         db.query(Result).delete()
-        db.query(Event).delete()
         db.query(User).delete()
+        # 仅当明确提供赛事时才重置赛事（避免误删启动时自动创建的默认赛事）
+        if data.events:
+            db.query(Event).delete()
         db.flush()
     for u in data.users:
         db.add(User(
