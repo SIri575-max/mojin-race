@@ -16,7 +16,7 @@
 | 环境 ID | `newperson-d1goip47jd51c941d` (体验版) | ap-shanghai |
 | 前端 | 静态网站托管 | 已部署 |
 | 后端 | 云托管（容器型）服务 `mojin-backend` | ✅ 已部署（版本 005+） |
-| 数据库 | SQLite（容器本地） | ⚠️ 无持久化，重新部署数据会丢失 |
+| 数据库 | SQLite（容器本地） | ✅ 已配数据导出/恢复接口，部署前备份即可不丢 |
 | Dockerfile | 项目根目录 | 已就绪 |
 
 ### 更新后端上线（已部署，此处为更新流程）
@@ -25,12 +25,17 @@
 
 > 注意：环境里还有 `mojintest` 服务，是测试实例，**请部署到 `mojin-backend`**。
 
-1. 改完代码后 `git commit` + `git push origin main`（仓库 `SIri575-max/mojin-race`）
-2. 通过 MCP 工具 `manageCloudRun deploy`（`serverName=mojin-backend`）触发构建；或到控制台云托管服务页手动触发部署
-3. MCP 部署会显示"超时"属正常，后台构建仍在进行，几分钟后查服务详情确认版本号 +1 即成功
-4. 前端 `frontend/index.html` 由后端静态托管，**前端改动同样要重新部署后端**才生效
+**标准部署流程（保证账号/成绩不丢）**：
 
-> ⚠️ 数据库现状：体验版 + 共享集群**无法开通 PostgreSQL/MySQL**（需企业版套餐）。当前数据存容器内 SQLite，**每次重新部署数据会重置**。`database.py` 已支持 PostgreSQL，开通后设 `DATABASE_URL` 环境变量即可切换。详见 `PROJECT.md` 第九章。
+1. **部署前备份**：`python backup_restore.py export <线上地址>`（导出到 `backup/mojin_data.json`）
+2. `git add backup/ && git commit && git push origin main`（仓库 `SIri575-max/mojin-race`，备份快照入库双保险）
+3. 通过 MCP 工具 `manageCloudRun deploy`（`serverName=mojin-backend`）触发构建；或到控制台云托管服务页手动触发部署
+4. MCP 部署会显示"超时"属正常，后台构建仍在进行，几分钟后查服务详情确认版本号 +1 即成功
+5. **部署后恢复**：`python backup_restore.py import <线上地址>`（账号/成绩恢复）
+
+> 前端 `frontend/index.html` 由后端静态托管，**前端改动同样要重新部署后端**才生效。
+
+> ⚠️ 数据库现状：体验版 + 共享集群**无法开通 PostgreSQL/MySQL/NoSQL**（需企业版套餐）。当前数据存容器内 SQLite，**每次重新部署数据会重置**。为此已落地「方案3」：管理密钥（`X-Admin-Key`，值 = `SECRET_KEY`）认证的导出/恢复接口 + 前端「🛠 管理」页签，按上面流程部署即可不丢账号。`database.py` 已支持 PostgreSQL，将来升级后设 `DATABASE_URL` 环境变量即可无缝切换。详见 `PROJECT.md` 第九章。
 
 ### 环境变量（后端容器 EnvParams）
 
@@ -51,6 +56,21 @@
   3. **单场最高带出**：所有场次带出价值最高一次
   4. **击败异象**：所有场次击败异象数量最高一次
 - 我的成绩（历史提交记录 + 战绩图回看）
+- 管理（🛠 管理页签）：查看全部用户/成绩、导出 JSON 备份、导出 CSV、下载数据库、恢复数据（管理密钥认证）
+
+## 数据备份 / 恢复
+
+体验版无持久化数据库，重新部署会清空数据。通过以下方式备份恢复：
+
+```bash
+# 部署前备份
+python backup_restore.py export https://mojin-backend-296017-11-1421210724.sh.run.tcloudbase.com
+
+# 部署后恢复
+python backup_restore.py import https://mojin-backend-296017-11-1421210724.sh.run.tcloudbase.com
+```
+
+也可在前端「🛠 管理」页签内完成同样操作（输入管理密钥 `SECRET_KEY`）。
 
 ## 快速启动
 
@@ -113,4 +133,6 @@ backend/
   check_vision.py  # 视觉AI配置检查
 frontend/
   index.html       # 单页前端（Vue3 + Element Plus）
+backup_restore.py  # 数据备份/恢复脚本
+backup/            # 数据快照备份目录（随 git 提交）
 ```

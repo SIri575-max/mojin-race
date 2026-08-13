@@ -50,3 +50,14 @@ def require_admin(user: User = Depends(get_current_user)) -> User:
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="需要管理员权限")
     return user
+
+
+def require_admin_key(x_admin_key: str = Header(default="")):
+    """恢复密钥认证：用 SECRET_KEY 作为管理密钥，不依赖数据库用户表。
+
+    用于部署后（容器重建、用户表被清空）恢复数据，以及数据导出/备份等
+    管理操作。密钥通过请求头 X-Admin-Key 传入，与部署时注入的 SECRET_KEY 一致。
+    """
+    if not x_admin_key or not hmac.compare_digest(x_admin_key, SECRET_KEY):
+        raise HTTPException(status_code=403, detail="无效的管理密钥")
+    return True

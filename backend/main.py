@@ -1,3 +1,6 @@
+import csv
+import io
+import os
 import re
 import uuid
 from datetime import datetime
@@ -5,15 +8,15 @@ from pathlib import Path
 
 from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 import ocr_service
 import vision_api
-from auth import hash_password, verify_password, create_token, get_current_user, require_admin
-from database import init_db, get_db, User, Event, Result
+from auth import hash_password, verify_password, create_token, get_current_user, require_admin, require_admin_key
+from database import init_db, get_db, User, Event, Result, DB_PATH
 from ranking import get_rankings
 
 app = FastAPI(title="第五人格摸金娱乐赛")
@@ -602,6 +605,174 @@ def my_results(user: User = Depends(get_current_user), db: Session = Depends(get
 @app.get("/api/rankings/{event_id}")
 def rankings(event_id: int, db: Session = Depends(get_db)):
     return get_rankings(db, event_id)
+
+
+# ---- 管理 / 数据导出（方案3：查看、导出、备份、恢复）----
+# 统一用 X-Admin-Key 请求头（值 = 部署时注入的 SECRET_KEY）认证，
+# 不依赖数据库用户表，因此容器重建/重新部署后仍可恢复数据。
+
+
+def _ser_user(u: User) -> dict:
+    return {
+        "id": u.id, "username": u.username, "password_hash": u.password_hash,
+        "nickname": u.nickname, "qq": u.qq, "game_id": u.game_id or "",
+        "game_username": u.game_username or "", "role": u.role or "player",
+        "created_at": u.created_at.isoformat() if u.created_at else None,
+    }
+
+
+def _ser_event(e: Event) -> dict:
+    return {
+        "id": e.id, "name": e.name, "description": e.description or "",
+        "status": e.status or "open",
+        "created_at": e.created_at.isoformat() if e.created_at else None,
+    }
+
+
+def _ser_result(r: Result) -> dict:
+    return {
+        "id": r.id, "user_id": r.user_id, "event_id": r.event_id,
+        "match_id": r.match_id, "is_duo": bool(r.is_duo), "submit_type": r.submit_type,
+        "time_start": r.time_start.isoformat() if r.time_start else None,
+        "time_end": r.time_end.isoformat() if r.time_end else None,
+        "explore_value": r.explore_value, "takeout_value": r.takeout_value,
+        "kills": r.kills, "kills_score": r.kills_score, "kills_detail": r.kills_detail or "",
+        "calc_explore": r.calc_explore, "calc_takeout": r.calc_takeout,
+        "calc_kills": r.calc_kills, "calc_kills_score": r.calc_kills_score,
+        "image_path": r.image_path or "", "ocr_text": r.ocr_text or "",
+        "confirmed": bool(r.confirmed),
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+    }
+
+
+class AdminImportIn(BaseModel):
+    users: list = []
+    events: list = []
+    results: list = []
+    overwrite: bool = True
+
+
+@app.get("/api/admin/export", dependencies=[Depends(require_admin_key)])
+def admin_export(db: Session = Depends(get_db)):
+    """完整导出 users / events / results（含密码 hash），用于数据备份与部署后恢复。"""
+    users = db.query(User).order_by(User.id).all()
+    events = db.query(Event).order_by(Event.id).all()
+    results = db.query(Result).order_by(Result.id).all()
+    return {
+        "version": 1,
+        "exported_at": datetime.utcnow().isoformat() + "Z",
+        "counts": {"users": len(users), "events": len(events), "results": len(results)},
+        "users": [_ser_user(u) for u in users],
+        "events": [_ser_event(e) for e in events],
+        "results": [_ser_result(r) for r in results],
+    }
+
+
+@app.post("/api/admin/import", dependencies=[Depends(require_admin_key)])
+def admin_import(data: AdminImportIn, db: Session = Depends(get_db)):
+    """导入数据快照，用于部署后恢复账号与成绩。overwrite=true 时先清空再导入。"""
+    if data.overwrite:
+        db.query(Result).delete()
+        db.query(Event).delete()
+        db.query(User).delete()
+        db.flush()
+    for u in data.users:
+        db.add(User(
+            id=u.get("id"),
+            username=u.get("username") or u.get("qq") or "",
+            password_hash=u.get("password_hash") or "",
+            nickname=u.get("nickname") or "",
+            qq=u.get("qq"),
+            game_id=u.get("game_id") or "",
+            game_username=u.get("game_username") or "",
+            role=u.get("role") or "player",
+        ))
+    for e in data.events:
+        db.add(Event(
+            id=e.get("id"), name=e.get("name") or "",
+            description=e.get("description") or "", status=e.get("status") or "open",
+        ))
+    for r in data.results:
+        db.add(Result(
+            id=r.get("id"), user_id=r.get("user_id"), event_id=r.get("event_id"),
+            match_id=r.get("match_id"), is_duo=bool(r.get("is_duo")),
+            submit_type=r.get("submit_type") or "total",
+            time_start=datetime.fromisoformat(r["time_start"]) if r.get("time_start") else None,
+            time_end=datetime.fromisoformat(r["time_end"]) if r.get("time_end") else None,
+            explore_value=r.get("explore_value") or 0,
+            takeout_value=r.get("takeout_value") or 0,
+            kills=r.get("kills") or 0,
+            kills_score=r.get("kills_score") or 0,
+            kills_detail=r.get("kills_detail") or "",
+            calc_explore=r.get("calc_explore"),
+            calc_takeout=r.get("calc_takeout"),
+            calc_kills=r.get("calc_kills"),
+            calc_kills_score=r.get("calc_kills_score"),
+            image_path=r.get("image_path") or "",
+            ocr_text=r.get("ocr_text") or "",
+            confirmed=bool(r.get("confirmed")),
+        ))
+    db.commit()
+    return {"ok": True, "imported": {
+        "users": len(data.users), "events": len(data.events), "results": len(data.results)}}
+
+
+@app.get("/api/admin/users", dependencies=[Depends(require_admin_key)])
+def admin_users(db: Session = Depends(get_db)):
+    """查看全部注册用户（管理密钥认证）。"""
+    users = db.query(User).order_by(User.id).all()
+    return [{
+        "id": u.id, "username": u.username, "qq": u.qq, "nickname": u.nickname,
+        "game_id": u.game_id, "game_username": u.game_username, "role": u.role,
+        "created_at": u.created_at.isoformat() if u.created_at else None,
+    } for u in users]
+
+
+@app.get("/api/admin/results", dependencies=[Depends(require_admin_key)])
+def admin_results(db: Session = Depends(get_db)):
+    """查看全部成绩记录（管理密钥认证）。"""
+    rows = db.query(Result).order_by(Result.id.desc()).all()
+    out = []
+    for r in rows:
+        item = _ser_result(r)
+        item["nickname"] = r.user.nickname if r.user else ""
+        item["qq"] = (r.user.qq or r.user.username) if r.user else ""
+        out.append(item)
+    return out
+
+
+@app.get("/api/admin/export.csv", dependencies=[Depends(require_admin_key)])
+def admin_export_csv(db: Session = Depends(get_db)):
+    """导出成绩明细为 CSV（Excel 可直接打开）。"""
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["ID", "昵称", "QQ", "类型", "双人", "探索价值", "带出价值",
+                "击败异象数", "异象总分", "提交时间", "已确认"])
+    for r in db.query(Result).order_by(Result.id).all():
+        w.writerow([
+            r.id,
+            r.user.nickname if r.user else "",
+            (r.user.qq or r.user.username) if r.user else "",
+            "单场最高" if r.submit_type == "best" else "总价值",
+            "是" if r.is_duo else "否",
+            r.explore_value, r.takeout_value, r.kills, r.kills_score,
+            r.created_at.strftime("%Y-%m-%d %H:%M:%S") if r.created_at else "",
+            "是" if r.confirmed else "否",
+        ])
+    buf.seek(0)
+    filename = f"mojin_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return StreamingResponse(
+        iter([buf.getvalue()]), media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/admin/backup", dependencies=[Depends(require_admin_key)])
+def admin_backup():
+    """下载完整 SQLite 数据库文件（.db），可离线用任意 SQLite 工具查看。"""
+    if not os.path.isfile(DB_PATH):
+        raise HTTPException(status_code=404, detail="SQLite 数据库文件不存在（可能使用 PostgreSQL）")
+    return FileResponse(DB_PATH, filename="mojin.db", media_type="application/octet-stream")
 
 
 # ---- 静态资源 ----

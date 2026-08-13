@@ -51,6 +51,7 @@
 10. **注册字段变更**（2026-08-12）：注册改为「昵称 + QQ号 + 第五ID + 第五用户名 + 密码」五项必填，登录用「QQ号/账号 + 密码」；`users` 表新增 `qq` / `nickname` / `game_id` / `game_username` 字段（旧"注册后无法登录"即旧进程跑旧代码导致字段不匹配）
 11. **异象计分提速**（2026-08-12）：后端 `_enrich_kills` 改为**只读取「击败异象总只数」**（来自一次 `analyze_image`），不再调用 `analyze_kills_icons` 的多次采样/放大/逐格扫描；识别耗时从数分钟缩短到 **约 3 秒**，`kills_score` / `kills_detail` 置空，具体各异象数量由选手在表格手动填写
 12. **异象计分页交互改造**（2026-08-12）：改为「**先选图 → 点「开始识别」→ 表格始终可填**」模式（与总价值识别交互一致）；13 种异象数量表格**不再依赖识别成功才显示**，可纯手动计分直接提交；修复了此前表格被 `v-if="calcImagePath"` 隐藏导致"无法输入"的问题
+13. **数据持久化 + 管理接口**（2026-08-12）：新增「方案3」——管理密钥（`X-Admin-Key`，值 = `SECRET_KEY`）认证的 `export`/`import`/`users`/`results`/`export.csv`/`backup` 接口，前端新增「🛠 管理」页签，根目录新增 `backup_restore.py` 脚本；解决体验版共享集群下"重新部署丢账号/成绩"问题（详见第九章）
 
 ### 本次端到端验证结果
 - `POST /api/ocr/batch` 多图批量：返回每张原始文件名、`image_path`、`sub_total`，累计 `total_in_range` ✓
@@ -150,13 +151,13 @@
 ## 七、待办 / 后续可优化
 
 - [x] **重启后端**加载新代码（本地 8000 已重启，线上已部署到 `mojin-backend-005+`）
-- [ ] **数据库持久化**：当前体验版共享集群无法开通 PostgreSQL/MySQL，数据存容器内 SQLite，重新部署会丢失（见「九、部署与数据库」）
+- [x] **数据库持久化（方案3）**：管理接口（export/import 等）+ 部署流程「导出→部署→导入」已落地，重新部署不丢账号（见「九、部署与数据库」）
 - [ ] 正式比赛前清空测试数据（删除 `backend/mojin.db` 后重启，保留 `uploads/` 即可）
 - [ ] 用更多真实战绩图调优列表截图 OCR（不同机型截图、亮度/旋转）
 - [ ] 视觉 AI 模型升级 `glm-4v-plus`（付费）进一步提升识别率
 - [ ] 管理员后台：赛事开关、成绩复核、异常值标注
 - [ ] 前端暗色主题/移动端适配（选手多使用手机上传截图）
-- [ ] 导入导出：排行榜 CSV / Excel 导出，公示用
+- [x] 导入导出：排行榜 CSV 导出 + 完整数据 JSON 导出/恢复（`/api/admin/export.csv`、`/api/admin/export`、`/api/admin/import`）
 
 ## 八、文件清单
 
@@ -174,6 +175,8 @@ backend/
   .env.example     # 配置模板
 frontend/
   index.html       # 单页应用（Vue3 + Element Plus）
+backup_restore.py  # 数据备份/恢复脚本（export/import 线上数据）
+backup/            # 数据快照备份目录（mojin_data.json，随 git 提交）
 uploads/           # 上传的战绩截图
 PROJECT.md         # 本文档
 README.md          # 项目说明
@@ -207,17 +210,36 @@ README.md          # 项目说明
 - 后果：**每次重新部署（版本 +1）都会重置容器，SQLite 数据全部丢失**。
 - `database.py` 已写好 PostgreSQL 支持：设置 `DATABASE_URL` 环境变量 + 安装 `psycopg2-binary` 即可切换，无需改代码。
 
-### 数据库持久化可选项（按推荐排序）
+### 数据持久化方案（✅ 方案③已落地，2026-08-12）
 
-| 方案 | 说明 | 门槛 |
+体验版 + 共享集群下 PostgreSQL/MySQL/NoSQL 均无法开通、云托管无持久化存储，因此采用**「管理接口 + 导出/恢复」**方案零成本解决"重新部署丢账号"问题：
+
+**核心接口**（统一用请求头 `X-Admin-Key` 认证，值 = 部署时注入的 `SECRET_KEY`，即 `mojin-race-dev-secret`）：
+
+| 接口 | 方法 | 说明 |
 |---|---|---|
-| ① 升级企业版 + 开通 PostgreSQL | 配 `DATABASE_URL`，控制台可直接查看 `results` 表，数据不丢 | 付费 |
-| ② 云托管挂载持久化存储（CFS/NFS） | 把 SQLite 文件目录挂到持久化盘，重新部署不丢数据 | 需开通文件存储 |
-| ③ 保持现状 + 后端加「数据导出/管理」接口 | 通过网页/接口查看并导出成绩（零成本，立即可用） | 无 |
+| `/api/admin/export` | GET | 完整导出 `users`（含密码 hash）+ `events` + `results` 为 JSON |
+| `/api/admin/import` | POST | 导入数据快照，`overwrite=true` 先清空再导入（部署后恢复账号/成绩） |
+| `/api/admin/users` | GET | 查看全部注册用户 |
+| `/api/admin/results` | GET | 查看全部成绩记录 |
+| `/api/admin/export.csv` | GET | 成绩明细导出 CSV（Excel 可直接打开） |
+| `/api/admin/backup` | GET | 下载完整 SQLite 数据库文件 `.db` |
+
+**部署标准流程（保证账号不丢）**：
+
+```
+① 部署前：python backup_restore.py export <线上地址>   # 导出到 backup/mojin_data.json
+② git add backup/ && git commit && git push            # 备份快照入库（双保险）
+③ 触发部署（manageCloudRun deploy）
+④ 部署完成后：python backup_restore.py import <线上地址>  # 从备份恢复账号/成绩
+```
+
+> 前端「🛠 管理」页签已内置全部上述操作（输入管理密钥后即可查看/导出/备份/恢复），无需命令行。
 
 ### 查看数据的方式
 
 - **排行榜页面**：线上首页实时展示四大榜单（公开数据）。
+- **前端「🛠 管理」页签**：输入管理密钥后可查看全部用户/成绩、导出 JSON/CSV、下载数据库、恢复数据。
 - **接口**：`GET /api/rankings/{event_id}`、`GET /api/events`、`GET /api/my/results`（登录态）。
 - **数据库控制台**：仅方案①（PostgreSQL）下可用；当前体验版不可用。
 - **本地**：`backend/mojin.db`（SQLite）可用任意 SQLite 工具打开查看历史测试数据。

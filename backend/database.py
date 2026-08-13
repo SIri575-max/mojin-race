@@ -7,8 +7,9 @@ from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 # - 云端（云托管）通过环境变量 DATABASE_URL 注入 PostgreSQL 内网连接串，
 #   格式 postgresql://<user>:<password>@<host>:<port>/<dbname>；
 # - 本地开发默认使用 SQLite（backend/mojin.db），避免因启动目录不同导致数据分裂。
-_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mojin.db")
-DATABASE_URL = os.environ.get("DATABASE_URL") or ("sqlite:///" + _DB_PATH.replace("\\", "/"))
+# SQLite 数据库文件路径（仅本地/云托管 SQLite 模式使用；PostgreSQL 模式下无意义）
+DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mojin.db")
+DATABASE_URL = os.environ.get("DATABASE_URL") or ("sqlite:///" + DB_PATH.replace("\\", "/"))
 IS_POSTGRES = DATABASE_URL.startswith("postgres")
 
 if IS_POSTGRES:
