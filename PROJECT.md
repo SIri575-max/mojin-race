@@ -48,6 +48,9 @@
    - **背景**：`ui/1.jpg`（深色庄园图）作为全局背景（cover + fixed + 暗色渐变遮罩）；`ui/6.jpg` 作为主界面顶部横幅背景（hero-banner，含带出之王 / 异象之王 / 我的场次三个数据位）
    - **静态托管**：后端新增 `/ui`（项目根 `ui/` 素材目录）与 `/assets`（`frontend/` 资源目录）两个 StaticFiles 挂载
    - **一键启动**：项目根 `启动.bat`（chcp 65001 + UTF-8），自动装依赖 → 检测 `.env` → 启动 8000 端口并自动打开浏览器
+10. **注册字段变更**（2026-08-12）：注册改为「昵称 + QQ号 + 第五ID + 第五用户名 + 密码」五项必填，登录用「QQ号/账号 + 密码」；`users` 表新增 `qq` / `nickname` / `game_id` / `game_username` 字段（旧"注册后无法登录"即旧进程跑旧代码导致字段不匹配）
+11. **异象计分提速**（2026-08-12）：后端 `_enrich_kills` 改为**只读取「击败异象总只数」**（来自一次 `analyze_image`），不再调用 `analyze_kills_icons` 的多次采样/放大/逐格扫描；识别耗时从数分钟缩短到 **约 3 秒**，`kills_score` / `kills_detail` 置空，具体各异象数量由选手在表格手动填写
+12. **异象计分页交互改造**（2026-08-12）：改为「**先选图 → 点「开始识别」→ 表格始终可填**」模式（与总价值识别交互一致）；13 种异象数量表格**不再依赖识别成功才显示**，可纯手动计分直接提交；修复了此前表格被 `v-if="calcImagePath"` 隐藏导致"无法输入"的问题
 
 ### 本次端到端验证结果
 - `POST /api/ocr/batch` 多图批量：返回每张原始文件名、`image_path`、`sub_total`，累计 `total_in_range` ✓
@@ -98,8 +101,8 @@
 - 提交后清空人工录入，重新识别后自动初始化
 
 ### 待办
-1. 全量回归测试（8001 端口：注册→上传结算图→AI识别→人工录入核对→提交→榜单含明细）
-2. 告知用户重启 8000/8001 端口加载新代码
+1. 全量回归测试（注册→上传结算图→开始识别→手动填写异象数量→提交→榜单含明细）
+2. 数据库持久化方案落地（见「九、部署与数据库（线上）」章节）
 3. （可选）后续升级付费模型 `glm-4v-plus` 提升识图精度
 
 ### 双人关联
@@ -146,7 +149,8 @@
 
 ## 七、待办 / 后续可优化
 
-- [ ] **重启 8000 端口后端**以加载新代码（当前 8000 运行的是旧版本，新功能仅在 8001 测试实例验证）
+- [x] **重启后端**加载新代码（本地 8000 已重启，线上已部署到 `mojin-backend-005+`）
+- [ ] **数据库持久化**：当前体验版共享集群无法开通 PostgreSQL/MySQL，数据存容器内 SQLite，重新部署会丢失（见「九、部署与数据库」）
 - [ ] 正式比赛前清空测试数据（删除 `backend/mojin.db` 后重启，保留 `uploads/` 即可）
 - [ ] 用更多真实战绩图调优列表截图 OCR（不同机型截图、亮度/旋转）
 - [ ] 视觉 AI 模型升级 `glm-4v-plus`（付费）进一步提升识别率
@@ -159,7 +163,7 @@
 ```
 backend/
   main.py          # FastAPI 入口：/api/ocr(mode=list/single) /api/ocr/batch /api/results /api/rankings
-  database.py      # SQLAlchemy 模型 + 轻量迁移
+  database.py      # SQLAlchemy 模型 + 轻量迁移（支持 SQLite / PostgreSQL，通过 DATABASE_URL 切换）
   auth.py          # JWT 注册登录
   ocr_service.py   # RapidOCR + 单场/列表提取 + 异象图标文本兜底
   vision_api.py    # 智谱视觉 AI（analyze_image / analyze_list / analyze_kills_icons）
@@ -174,3 +178,46 @@ uploads/           # 上传的战绩截图
 PROJECT.md         # 本文档
 README.md          # 项目说明
 ```
+
+## 九、部署与数据库（线上）
+
+### 部署信息
+
+| 项 | 值 |
+|---|---|
+| 平台 | 腾讯云 CloudBase 云托管（容器服务） |
+| 环境 ID | `newperson-d1goip47jd51c941d`（**体验版**） |
+| 服务名 | **`mojin-backend`**（注意：另有 `mojintest` 是测试服务，**不要部署到 mojintest**） |
+| 线上地址 | `https://mojin-backend-296017-11-1421210724.sh.run.tcloudbase.com` |
+| 容器规格 | 1 核 / 2 GB / 端口 8000 / 实例数 1 |
+| 版本迭代 | `mojin-backend-001` → … → `005`（每次部署 +1，可从服务详情查看当前版本） |
+| Git 仓库 | `https://github.com/SIri575-max/mojin-race.git`（分支 `main`） |
+
+### 两种部署方式
+
+1. **MCP 自动部署**：`manageCloudRun(action=deploy, serverName=mojin-backend, targetPath=<项目根>)`。注意该调用会显示"超时"，但后台构建实际会继续完成，稍等几分钟后查服务详情确认版本号 +1 即可。
+2. **GitHub 关联部署**：`git commit` + `git push origin main` 后，在云托管控制台触发构建（历史采用此方式）。
+
+> 部署只更新后端代码；前端 `frontend/index.html` 由后端作为静态文件托管，因此**前端改动也要重新部署后端**才生效。
+
+### 数据库现状（重要）⚠️
+
+- **当前线上没有独立数据库**：环境是体验版 + 共享集群，**无法开通 PostgreSQL/MySQL 关系型数据库**（需升级到企业版套餐才能开通）。
+- 因此线上使用**容器内置 SQLite**（`/app/backend/mojin.db`），且**未挂载持久化存储**。
+- 后果：**每次重新部署（版本 +1）都会重置容器，SQLite 数据全部丢失**。
+- `database.py` 已写好 PostgreSQL 支持：设置 `DATABASE_URL` 环境变量 + 安装 `psycopg2-binary` 即可切换，无需改代码。
+
+### 数据库持久化可选项（按推荐排序）
+
+| 方案 | 说明 | 门槛 |
+|---|---|---|
+| ① 升级企业版 + 开通 PostgreSQL | 配 `DATABASE_URL`，控制台可直接查看 `results` 表，数据不丢 | 付费 |
+| ② 云托管挂载持久化存储（CFS/NFS） | 把 SQLite 文件目录挂到持久化盘，重新部署不丢数据 | 需开通文件存储 |
+| ③ 保持现状 + 后端加「数据导出/管理」接口 | 通过网页/接口查看并导出成绩（零成本，立即可用） | 无 |
+
+### 查看数据的方式
+
+- **排行榜页面**：线上首页实时展示四大榜单（公开数据）。
+- **接口**：`GET /api/rankings/{event_id}`、`GET /api/events`、`GET /api/my/results`（登录态）。
+- **数据库控制台**：仅方案①（PostgreSQL）下可用；当前体验版不可用。
+- **本地**：`backend/mojin.db`（SQLite）可用任意 SQLite 工具打开查看历史测试数据。

@@ -15,15 +15,22 @@
 |------|------|------|
 | 环境 ID | `newperson-d1goip47jd51c941d` (体验版) | ap-shanghai |
 | 前端 | 静态网站托管 | 已部署 |
-| 后端 | 云托管（容器型） | 待开通 |
-| 数据库 | SQLite（容器本地） | 依赖云托管 |
+| 后端 | 云托管（容器型）服务 `mojin-backend` | ✅ 已部署（版本 005+） |
+| 数据库 | SQLite（容器本地） | ⚠️ 无持久化，重新部署数据会丢失 |
 | Dockerfile | 项目根目录 | 已就绪 |
 
-### 部署后端（需要手动开通云托管）
+### 更新后端上线（已部署，此处为更新流程）
 
-1. 在 [CloudBase 控制台](https://console.cloud.tencent.com/tcb) → 环境 `newperson` → 云托管 → 开通服务
-2. 开通后重新运行部署命令，或通过 MCP 工具 `manageCloudRun deploy` 部署
-3. 后端部署后会获得独立域名，前端可通过 `window.__MOJIN_API_BASE__` 指向该地址
+线上后端地址：`https://mojin-backend-296017-11-1421210724.sh.run.tcloudbase.com`
+
+> 注意：环境里还有 `mojintest` 服务，是测试实例，**请部署到 `mojin-backend`**。
+
+1. 改完代码后 `git commit` + `git push origin main`（仓库 `SIri575-max/mojin-race`）
+2. 通过 MCP 工具 `manageCloudRun deploy`（`serverName=mojin-backend`）触发构建；或到控制台云托管服务页手动触发部署
+3. MCP 部署会显示"超时"属正常，后台构建仍在进行，几分钟后查服务详情确认版本号 +1 即成功
+4. 前端 `frontend/index.html` 由后端静态托管，**前端改动同样要重新部署后端**才生效
+
+> ⚠️ 数据库现状：体验版 + 共享集群**无法开通 PostgreSQL/MySQL**（需企业版套餐）。当前数据存容器内 SQLite，**每次重新部署数据会重置**。`database.py` 已支持 PostgreSQL，开通后设 `DATABASE_URL` 环境变量即可切换。详见 `PROJECT.md` 第九章。
 
 ### 环境变量（后端容器 EnvParams）
 

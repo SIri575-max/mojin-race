@@ -545,20 +545,23 @@
             title="上传【单场结算页】截图：系统快速识别带出价值与「击败异象总个数」，具体各异象数量请在下方表格手动填写，总分实时计算，确认后一键提交到「单场最高带出 / 击败异象」榜。"></el-alert>
 
           <el-upload
-            drag
-            :show-file-list="false"
-            :http-request="uploadCalcShot"
+            :auto-upload="false"
+            v-model:file-list="calcFileList"
+            :limit="1"
+            :on-exceed="onCalcExceed"
             accept="image/*"
-            style="margin-bottom:16px">
-            <el-icon style="font-size:40px;color:#d4af37"><i>👾</i></el-icon>
-            <div style="margin:6px 0 4px">拖拽单场结算截图到这里，或 <em>点击上传</em></div>
-            <div class="hint">识别后自动显示击败异象总个数；各异象具体数量请在下方表格手动填写，总分实时计算</div>
+            style="margin-bottom:12px">
+            <el-button type="primary" plain>👾 选择结算截图</el-button>
+            <div class="hint" style="margin-left:8px">png/jpg/jpeg/webp/bmp，选图后点击「开始识别」</div>
           </el-upload>
+          <el-button type="primary" :loading="calcRecognizing" :disabled="!calcFileList.length" @click="runCalcRecognize" style="margin-left:8px">⚡ 开始识别</el-button>
+          <el-button v-if="calcFileList.length || calcPreview" text type="danger" @click="clearCalc" style="margin-left:8px">移除</el-button>
 
-          <div v-if="calcImagePath" class="calc-body">
+          <div class="calc-body" style="margin-top:16px">
             <div class="calc-left">
-              <img :src="calcPreview" class="preview-img" alt="结算图">
-              <p class="hint" style="text-align:center">识别原图</p>
+              <img v-if="calcPreview" :src="calcPreview" class="preview-img" alt="结算图">
+              <div v-else class="hint" style="text-align:center;padding:40px 12px">未识别图片，可直接在右侧手动计分</div>
+              <p v-if="calcPreview" class="hint" style="text-align:center">识别原图</p>
             </div>
             <div class="calc-right">
               <el-form label-width="110px" style="margin-bottom:4px">
@@ -594,7 +597,6 @@
               </div>
             </div>
           </div>
-          <p v-else class="hint">请先上传一张清晰的单场结算截图</p>
         </div>
       </el-tab-pane>
 
@@ -828,6 +830,8 @@ createApp({
     const calcTotalScore = computed(() => Math.round(iconList.value.reduce((s, ic) => s + (Number(calcKills[ic.name]) || 0) * (ic.score || 0), 0) * 100) / 100);
     const calcTotalCount = computed(() => iconList.value.reduce((s, ic) => s + (Number(calcKills[ic.name]) || 0), 0));
     const calcDetectedKills = ref(null); // AI 识别到的「击败异象总个数」（不做具体图标识别，供核对）
+    const calcFileList = ref([]);        // 待识别结算图（先选择，再点「开始识别」）
+    const calcRecognizing = ref(false);  // 识别进行中
     // 人工数据是否与 AI 识别一致（总只数与总分都一致）
     const manualConsistent = computed(() => manualTotal.value > 0 && manualTotal.value === killsTotal.value && Math.abs(manualScore.value - killsScore.value) < 0.01);
     const loadIcons = async () => {
@@ -1052,10 +1056,16 @@ createApp({
       }
     };
 
-    // 异象计分页：上传结算图并识别
-    const uploadCalcShot = async ({ file }) => {
+    // 异象计分页：先选图，再点「开始识别」（与总价值识别交互一致）
+    const onCalcExceed = () => {
+      ElementPlus.ElMessage.warning('异象计分一次只需上传一张结算截图');
+    };
+    const runCalcRecognize = async () => {
+      const f = calcFileList.value[0];
+      if (!f || !f.raw) { ElementPlus.ElMessage.warning('请先选择一张结算截图'); return; }
+      calcRecognizing.value = true;
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', f.raw);
       fd.append('engine', 'auto');
       fd.append('mode', 'best');
       try {
@@ -1075,7 +1085,16 @@ createApp({
         ElementPlus.ElMessage.success(`识别完成（${engineLabel}）：击败异象约 ${calcDetectedKills.value ?? '?'} 只，请在下方表格手动填写各异象数量`);
       } catch (e) {
         ElementPlus.ElMessage.error(e.message || '识别失败');
+      } finally {
+        calcRecognizing.value = false;
       }
+    };
+    const clearCalc = () => {
+      calcFileList.value = [];
+      calcImagePath.value = '';
+      calcPreview.value = '';
+      calcTakeout.value = null;
+      calcDetectedKills.value = null;
     };
 
     // 异象计分页：提交到单场榜
@@ -1107,7 +1126,7 @@ createApp({
           }),
         });
         ElementPlus.ElMessage.success('异象计分已提交并入榜！');
-        calcPreview.value = ''; calcImagePath.value = ''; calcTakeout.value = null;
+        clearCalc();
         iconList.value.forEach(ic => { calcKills[ic.name] = 0; });
         loadRankings(); loadMyResults();
       } catch (e) {
@@ -1223,7 +1242,7 @@ createApp({
       imgSrc, imgSrcs, parseDetail, runBatch, clearBatch, onBatchExceed,
       iconList, manualKills, manualScore, manualTotal, manualConsistent,
       calcPreview, calcImagePath, calcTakeout, calcKills, calcTotalCount, calcTotalScore, calcDetectedKills,
-      uploadCalcShot, submitCalc,
+      calcFileList, calcRecognizing, runCalcRecognize, onCalcExceed, clearCalc, submitCalc,
     };
   }
 }).use(ElementPlus, { locale: ElementPlusLocaleZhCn }).mount('#app');
