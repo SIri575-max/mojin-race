@@ -255,41 +255,19 @@ def ocr_upload(
 
 
 def _enrich_kills(parsed: dict, path: str, use_ai: bool = True) -> dict:
-    """用新规则补充击败异象识别结果：kills_score（总分）/ kills_total / kills_detail。
+    """击败异象（提速版）：只读取「击败异象总个数」（kills），不识别具体图标种类。
 
-    AI 优先（能区分图标种类与变体），失败则尝试本地 OCR 的「图标名 xN」文本行。
+    具体各异象数量由选手在「异象计分」表格中手动填写；识别只保留一次视觉 AI 调用
+    （analyze_image），不再触发原 analyze_kills_icons 的多次采样/放大/逐格扫描，耗时大幅缩短。
     """
-    if use_ai:
-        try:
-            r = vision_api.analyze_kills_icons(path)
-            parsed["kills_score"] = r["kills_score"]
-            parsed["kills_total"] = r["kills_total"]
-            parsed["kills_detail"] = r["kills_detail"]
-            return parsed
-        except Exception:
-            pass
+    kills = parsed.get("kills")
     try:
-        text = ocr_service.ocr_image(path)
-    except RuntimeError:
-        return parsed
-    if not text:
-        return parsed
-    r = ocr_service.extract_kills_icons(text)
-    if r["kills_detail"]:
-        icons = vision_api.load_icons()
-        detail, total, total_count = [], 0.0, 0
-        for d in r["kills_detail"]:
-            score = icons.get(d["name"], (None, None))[0]
-            if score is None:
-                continue
-            sub = round(score * d["count"], 2)
-            detail.append({"name": d["name"], "count": d["count"], "score": score, "sub": sub})
-            total += sub
-            total_count += d["count"]
-        if detail:
-            parsed.setdefault("kills_score", round(total, 2))
-            parsed.setdefault("kills_total", total_count)
-            parsed.setdefault("kills_detail", detail)
+        parsed["kills_total"] = int(kills) if kills is not None else 0
+    except (TypeError, ValueError):
+        parsed["kills_total"] = 0
+    # 不识别具体图标：总分与明细留空，交由前端按人工填写数量实时计算
+    parsed.setdefault("kills_score", None)
+    parsed.setdefault("kills_detail", [])
     return parsed
 
 

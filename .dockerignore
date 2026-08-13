@@ -1,0 +1,36 @@
+.git
+.gitignore
+.dockerignore
+
+# Python 虚拟环境与缓存
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+
+# 密钥
+**/.env
+*.env
+
+# 依赖
+node_modules
+
+# 数据库（本地 SQLite 文件，务必排除，防止打进镜像覆盖云端数据）
+**/*.db
+
+# 上传文件（运行时动态生成）
+uploads/
+
+# 临时文件
+_tmp/
+
+# CloudBase 本地临时目录
+mojin-backend/
+
+# IDE
+.vscode
+.idea
+
+# 系统文件
+.DS_Store
+Thumbs.db

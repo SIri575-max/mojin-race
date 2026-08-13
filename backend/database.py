@@ -3,10 +3,20 @@ import os
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, DateTime, ForeignKey, text
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 
-# 固定使用 backend/mojin.db（绝对路径），避免因启动目录不同导致数据分裂
+# 数据库连接：
+# - 云端（云托管）通过环境变量 DATABASE_URL 注入 PostgreSQL 内网连接串，
+#   格式 postgresql://<user>:<password>@<host>:<port>/<dbname>；
+# - 本地开发默认使用 SQLite（backend/mojin.db），避免因启动目录不同导致数据分裂。
 _DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mojin.db")
-DATABASE_URL = "sqlite:///" + _DB_PATH.replace("\\", "/")
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+DATABASE_URL = os.environ.get("DATABASE_URL") or ("sqlite:///" + _DB_PATH.replace("\\", "/"))
+IS_POSTGRES = DATABASE_URL.startswith("postgres")
+
+if IS_POSTGRES:
+    # 复用连接池，避免 serverless 每次请求新建连接；pool_pre_ping 处理断连重连
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=5, max_overflow=10)
+else:
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 Base = declarative_base()
 
@@ -76,16 +86,28 @@ class Result(Base):
 def init_db():
     Base.metadata.create_all(bind=engine)
     _migrate()
+    _clean_image_paths()
+
+
+def _table_columns(conn, table: str) -> set:
+    """返回指定表已有的列名集合（兼容 SQLite 与 PostgreSQL）。"""
+    if IS_POSTGRES:
+        rows = conn.execute(
+            text("SELECT column_name FROM information_schema.columns WHERE table_name = :t"),
+            {"t": table},
+        ).fetchall()
+        return {r[0] for r in rows}
+    return {r[1] for r in conn.execute(text(f"PRAGMA table_info({table})"))}
 
 
 def _migrate():
-    """SQLite 轻量迁移：为已存在的 results / users 表补充新增列"""
+    """轻量迁移：为已存在的 results / users 表补充新增列（DDL 在 SQLite 与 PostgreSQL 下通用）"""
     with engine.begin() as conn:
-        cols = {row[1] for row in conn.execute(text("PRAGMA table_info(results)"))}
+        cols = _table_columns(conn, "results")
         add = {
             "submit_type": "VARCHAR(16) DEFAULT 'total'",
-            "time_start": "DATETIME",
-            "time_end": "DATETIME",
+            "time_start": "TIMESTAMP",
+            "time_end": "TIMESTAMP",
             "calc_explore": "FLOAT",
             "calc_takeout": "FLOAT",
             "calc_kills": "INTEGER",
@@ -97,7 +119,7 @@ def _migrate():
             if name not in cols:
                 conn.execute(text(f"ALTER TABLE results ADD COLUMN {name} {ddl}"))
 
-        ucols = {row[1] for row in conn.execute(text("PRAGMA table_info(users)"))}
+        ucols = _table_columns(conn, "users")
         uadd = {
             "qq": "VARCHAR(32)",
             "game_id": "VARCHAR(64) DEFAULT ''",
@@ -106,6 +128,30 @@ def _migrate():
         for name, ddl in uadd.items():
             if name not in ucols:
                 conn.execute(text(f"ALTER TABLE users ADD COLUMN {name} {ddl}"))
+
+
+def _clean_image_paths():
+    """清洗历史脏数据：image_path 若为本地绝对路径（含路径分隔符），规范化为纯文件名；
+    对应文件不存在则丢弃。纯文件名数据原样保留（不因文件暂时丢失而清空）。"""
+    up_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "uploads"))
+    with engine.begin() as conn:
+        rows = conn.execute(
+            text("SELECT id, image_path FROM results WHERE image_path IS NOT NULL AND image_path != ''")
+        ).fetchall()
+        for rid, ip in rows:
+            parts = [s.strip() for s in str(ip).split(",") if s.strip()]
+            kept = []
+            for p in parts:
+                if "/" in p or "\\" in p:
+                    # 历史绝对路径脏数据 → 提取文件名；文件不存在则丢弃
+                    name = p.replace("\\", "/").rsplit("/", 1)[-1]
+                    if os.path.isfile(os.path.join(up_dir, name)):
+                        kept.append(name)
+                else:
+                    kept.append(p)
+            new_val = ",".join(kept)
+            if new_val != str(ip):
+                conn.execute(text("UPDATE results SET image_path = :v WHERE id = :i"), {"v": new_val, "i": rid})
 
 
 def get_db():

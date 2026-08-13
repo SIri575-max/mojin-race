@@ -542,7 +542,7 @@
             </div>
           </div>
           <el-alert type="info" :closable="false" style="margin-bottom:14px"
-            title="上传【单场结算页】截图：系统自动识别带出价值，并尽可能识别右下角击败异象图标数量填入下表；核对后可手动修改数量，总分实时计算，确认后一键提交到「单场最高带出 / 击败异象」榜。"></el-alert>
+            title="上传【单场结算页】截图：系统快速识别带出价值与「击败异象总个数」，具体各异象数量请在下方表格手动填写，总分实时计算，确认后一键提交到「单场最高带出 / 击败异象」榜。"></el-alert>
 
           <el-upload
             drag
@@ -552,7 +552,7 @@
             style="margin-bottom:16px">
             <el-icon style="font-size:40px;color:#d4af37"><i>👾</i></el-icon>
             <div style="margin:6px 0 4px">拖拽单场结算截图到这里，或 <em>点击上传</em></div>
-            <div class="hint">识别后自动填入数量；可手动修改，总分实时计算</div>
+            <div class="hint">识别后自动显示击败异象总个数；各异象具体数量请在下方表格手动填写，总分实时计算</div>
           </el-upload>
 
           <div v-if="calcImagePath" class="calc-body">
@@ -588,6 +588,7 @@
                 <div>
                   击败异象 <b>{{ calcTotalCount }}</b> 只 &nbsp;·&nbsp; 总分
                   <b class="gold">{{ calcTotalScore }}</b> 分
+                  <span v-if="calcDetectedKills !== null" class="hint">（AI 识别总数 ≈ {{ calcDetectedKills }} 只，供核对）</span>
                 </div>
                 <el-button type="primary" :loading="submitting" @click="submitCalc">提交到单场榜</el-button>
               </div>
@@ -826,6 +827,7 @@ createApp({
     const calcKills = reactive({});
     const calcTotalScore = computed(() => Math.round(iconList.value.reduce((s, ic) => s + (Number(calcKills[ic.name]) || 0) * (ic.score || 0), 0) * 100) / 100);
     const calcTotalCount = computed(() => iconList.value.reduce((s, ic) => s + (Number(calcKills[ic.name]) || 0), 0));
+    const calcDetectedKills = ref(null); // AI 识别到的「击败异象总个数」（不做具体图标识别，供核对）
     // 人工数据是否与 AI 识别一致（总只数与总分都一致）
     const manualConsistent = computed(() => manualTotal.value > 0 && manualTotal.value === killsTotal.value && Math.abs(manualScore.value - killsScore.value) < 0.01);
     const loadIcons = async () => {
@@ -1066,14 +1068,11 @@ createApp({
         calcImagePath.value = data.image_path;
         calcPreview.value = '/uploads/' + data.image_path.split(/[\\/]/).pop();
         calcTakeout.value = (data.takeout_value !== undefined && data.takeout_value !== null) ? data.takeout_value : null;
-        // 识别明细自动填入数量（按名称匹配 13 种异象）
-        (data.kills_detail || []).forEach(d => {
-          const matched = iconList.value.find(ic =>
-            ic.name === d.name || ic.name.includes(d.name) || d.name.includes(ic.name));
-          if (matched) calcKills[matched.name] = Number(d.count) || 0;
-        });
+        // 只读取「击败异象总个数」，不识别具体图标，各异象数量由选手在下方表格手动填写
+        const total = (data.kills_total !== undefined && data.kills_total !== null) ? data.kills_total : (data.kills ?? null);
+        calcDetectedKills.value = (total !== null && total !== '') ? Number(total) : null;
         const engineLabel = data.engine === 'ai' ? '视觉AI' : '本地OCR';
-        ElementPlus.ElMessage.success(`识别完成（${engineLabel}），请核对带出价值与异象数量`);
+        ElementPlus.ElMessage.success(`识别完成（${engineLabel}）：击败异象约 ${calcDetectedKills.value ?? '?'} 只，请在下方表格手动填写各异象数量`);
       } catch (e) {
         ElementPlus.ElMessage.error(e.message || '识别失败');
       }
@@ -1223,6 +1222,8 @@ createApp({
       successCount, batchTotal, killsDetail, killsScore, killsTotal,
       imgSrc, imgSrcs, parseDetail, runBatch, clearBatch, onBatchExceed,
       iconList, manualKills, manualScore, manualTotal, manualConsistent,
+      calcPreview, calcImagePath, calcTakeout, calcKills, calcTotalCount, calcTotalScore, calcDetectedKills,
+      uploadCalcShot, submitCalc,
     };
   }
 }).use(ElementPlus, { locale: ElementPlusLocaleZhCn }).mount('#app');
